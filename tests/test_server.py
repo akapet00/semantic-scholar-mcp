@@ -95,6 +95,8 @@ def mock_client() -> MagicMock:
     mock = MagicMock()
     mock.get = AsyncMock()
     mock.post = AsyncMock()
+    mock.get_with_retry = AsyncMock()
+    mock.post_with_retry = AsyncMock()
     return mock
 
 
@@ -104,7 +106,7 @@ class TestSearchPapers:
     @pytest.mark.asyncio
     async def test_search_papers_success_with_results(self, mock_client: MagicMock) -> None:
         """Test search_papers returns papers when results are found."""
-        mock_client.get.return_value = {
+        mock_client.get_with_retry.return_value = {
             "total": 2,
             "data": [
                 SAMPLE_PAPER_RESPONSE,
@@ -130,12 +132,12 @@ class TestSearchPapers:
         assert len(result) == 2
         assert all(isinstance(p, Paper) for p in result)
         assert result[0].title == "Attention Is All You Need"
-        mock_client.get.assert_called_once()
+        mock_client.get_with_retry.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_search_papers_empty_results(self, mock_client: MagicMock) -> None:
         """Test search_papers returns informative message when no results found."""
-        mock_client.get.return_value = {"total": 0, "data": []}
+        mock_client.get_with_retry.return_value = {"total": 0, "data": []}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.search_papers.fn("xyznonexistentquery123")
@@ -147,7 +149,7 @@ class TestSearchPapers:
     @pytest.mark.asyncio
     async def test_search_papers_with_filters(self, mock_client: MagicMock) -> None:
         """Test search_papers applies filters correctly."""
-        mock_client.get.return_value = {"total": 1, "data": [SAMPLE_PAPER_RESPONSE]}
+        mock_client.get_with_retry.return_value = {"total": 1, "data": [SAMPLE_PAPER_RESPONSE]}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.search_papers.fn(
@@ -159,7 +161,7 @@ class TestSearchPapers:
             )
 
         assert isinstance(result, list)
-        call_args = mock_client.get.call_args
+        call_args = mock_client.get_with_retry.call_args
         params = call_args[1]["params"]
         assert params["year"] == "2020-2024"
         assert params["minCitationCount"] == 100
@@ -169,17 +171,17 @@ class TestSearchPapers:
     @pytest.mark.asyncio
     async def test_search_papers_limit_validation(self, mock_client: MagicMock) -> None:
         """Test search_papers clamps limit to valid range."""
-        mock_client.get.return_value = {"total": 1, "data": [SAMPLE_PAPER_RESPONSE]}
+        mock_client.get_with_retry.return_value = {"total": 1, "data": [SAMPLE_PAPER_RESPONSE]}
 
         with patch.object(server, "get_client", return_value=mock_client):
             # Test limit below minimum
             await server.search_papers.fn("test", limit=0)
-            call_args = mock_client.get.call_args
+            call_args = mock_client.get_with_retry.call_args
             assert call_args[1]["params"]["limit"] == 1
 
             # Test limit above maximum
             await server.search_papers.fn("test", limit=200)
-            call_args = mock_client.get.call_args
+            call_args = mock_client.get_with_retry.call_args
             assert call_args[1]["params"]["limit"] == 100
 
 
@@ -189,7 +191,7 @@ class TestGetPaperDetails:
     @pytest.mark.asyncio
     async def test_get_paper_details_valid_id(self, mock_client: MagicMock) -> None:
         """Test get_paper_details returns paper for valid ID."""
-        mock_client.get.return_value = SAMPLE_PAPER_WITH_TLDR
+        mock_client.get_with_retry.return_value = SAMPLE_PAPER_WITH_TLDR
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_details.fn("649def34f8be52c8b66281af98ae884c09aef38b")
@@ -202,7 +204,7 @@ class TestGetPaperDetails:
     @pytest.mark.asyncio
     async def test_get_paper_details_invalid_id(self, mock_client: MagicMock) -> None:
         """Test get_paper_details returns error message for invalid ID."""
-        mock_client.get.side_effect = NotFoundError("Paper not found")
+        mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_details.fn("nonexistent-paper-id")
@@ -214,31 +216,31 @@ class TestGetPaperDetails:
     @pytest.mark.asyncio
     async def test_get_paper_details_doi_format(self, mock_client: MagicMock) -> None:
         """Test get_paper_details works with DOI format."""
-        mock_client.get.return_value = SAMPLE_PAPER_WITH_TLDR
+        mock_client.get_with_retry.return_value = SAMPLE_PAPER_WITH_TLDR
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_details.fn("DOI:10.18653/v1/N18-3011")
 
         assert isinstance(result, PaperWithTldr)
-        call_args = mock_client.get.call_args
+        call_args = mock_client.get_with_retry.call_args
         assert "DOI:10.18653/v1/N18-3011" in call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_get_paper_details_arxiv_format(self, mock_client: MagicMock) -> None:
         """Test get_paper_details works with ArXiv format."""
-        mock_client.get.return_value = SAMPLE_PAPER_WITH_TLDR
+        mock_client.get_with_retry.return_value = SAMPLE_PAPER_WITH_TLDR
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_details.fn("ARXIV:2106.15928")
 
         assert isinstance(result, PaperWithTldr)
-        call_args = mock_client.get.call_args
+        call_args = mock_client.get_with_retry.call_args
         assert "ARXIV:2106.15928" in call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_get_paper_details_without_tldr(self, mock_client: MagicMock) -> None:
         """Test get_paper_details with include_tldr=False."""
-        mock_client.get.return_value = SAMPLE_PAPER_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_PAPER_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_details.fn(
@@ -246,7 +248,7 @@ class TestGetPaperDetails:
             )
 
         assert isinstance(result, PaperWithTldr)
-        call_args = mock_client.get.call_args
+        call_args = mock_client.get_with_retry.call_args
         assert "tldr" not in call_args[1]["params"]["fields"]
 
 
@@ -256,7 +258,7 @@ class TestGetPaperCitations:
     @pytest.mark.asyncio
     async def test_get_paper_citations_many_citations(self, mock_client: MagicMock) -> None:
         """Test get_paper_citations returns citing papers for well-cited paper."""
-        mock_client.get.return_value = SAMPLE_CITATION_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_CITATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_citations.fn("649def34f8be52c8b66281af98ae884c09aef38b")
@@ -270,7 +272,7 @@ class TestGetPaperCitations:
     @pytest.mark.asyncio
     async def test_get_paper_citations_few_citations(self, mock_client: MagicMock) -> None:
         """Test get_paper_citations with paper having few citations."""
-        mock_client.get.return_value = {"data": [{"citingPaper": SAMPLE_PAPER_RESPONSE}]}
+        mock_client.get_with_retry.return_value = {"data": [{"citingPaper": SAMPLE_PAPER_RESPONSE}]}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_citations.fn("paper-with-few-citations")
@@ -281,7 +283,7 @@ class TestGetPaperCitations:
     @pytest.mark.asyncio
     async def test_get_paper_citations_zero_citations(self, mock_client: MagicMock) -> None:
         """Test get_paper_citations returns message for paper with no citations."""
-        mock_client.get.return_value = {"data": []}
+        mock_client.get_with_retry.return_value = {"data": []}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_citations.fn("new-paper-no-citations")
@@ -292,7 +294,7 @@ class TestGetPaperCitations:
     @pytest.mark.asyncio
     async def test_get_paper_citations_not_found(self, mock_client: MagicMock) -> None:
         """Test get_paper_citations handles not found error."""
-        mock_client.get.side_effect = NotFoundError("Paper not found")
+        mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_citations.fn("nonexistent-id")
@@ -303,7 +305,7 @@ class TestGetPaperCitations:
     @pytest.mark.asyncio
     async def test_get_paper_citations_with_year_filter(self, mock_client: MagicMock) -> None:
         """Test get_paper_citations applies year filter."""
-        mock_client.get.return_value = SAMPLE_CITATION_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_CITATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             await server.get_paper_citations.fn(
@@ -311,7 +313,7 @@ class TestGetPaperCitations:
                 year="2020-2024",
             )
 
-        call_args = mock_client.get.call_args
+        call_args = mock_client.get_with_retry.call_args
         assert call_args[1]["params"]["year"] == "2020-2024"
 
 
@@ -321,7 +323,7 @@ class TestGetPaperReferences:
     @pytest.mark.asyncio
     async def test_get_paper_references_many_references(self, mock_client: MagicMock) -> None:
         """Test get_paper_references returns referenced papers."""
-        mock_client.get.return_value = SAMPLE_REFERENCE_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_REFERENCE_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_references.fn(
@@ -336,7 +338,7 @@ class TestGetPaperReferences:
     @pytest.mark.asyncio
     async def test_get_paper_references_few_references(self, mock_client: MagicMock) -> None:
         """Test get_paper_references with paper having few references."""
-        mock_client.get.return_value = {"data": [{"citedPaper": SAMPLE_PAPER_RESPONSE}]}
+        mock_client.get_with_retry.return_value = {"data": [{"citedPaper": SAMPLE_PAPER_RESPONSE}]}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_references.fn("paper-with-few-references")
@@ -347,7 +349,7 @@ class TestGetPaperReferences:
     @pytest.mark.asyncio
     async def test_get_paper_references_zero_references(self, mock_client: MagicMock) -> None:
         """Test get_paper_references returns message for paper with no references."""
-        mock_client.get.return_value = {"data": []}
+        mock_client.get_with_retry.return_value = {"data": []}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_references.fn("paper-no-references")
@@ -358,7 +360,7 @@ class TestGetPaperReferences:
     @pytest.mark.asyncio
     async def test_get_paper_references_not_found(self, mock_client: MagicMock) -> None:
         """Test get_paper_references handles not found error."""
-        mock_client.get.side_effect = NotFoundError("Paper not found")
+        mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_paper_references.fn("nonexistent-id")
@@ -375,7 +377,7 @@ class TestSearchAuthors:
         self, mock_client: MagicMock
     ) -> None:
         """Test search_authors returns multiple authors for common names."""
-        mock_client.get.return_value = {
+        mock_client.get_with_retry.return_value = {
             "total": 2,
             "data": [
                 SAMPLE_AUTHOR_RESPONSE,
@@ -400,7 +402,7 @@ class TestSearchAuthors:
     @pytest.mark.asyncio
     async def test_search_authors_unique_name(self, mock_client: MagicMock) -> None:
         """Test search_authors returns single author for unique name."""
-        mock_client.get.return_value = {
+        mock_client.get_with_retry.return_value = {
             "total": 1,
             "data": [SAMPLE_AUTHOR_RESPONSE],
         }
@@ -415,7 +417,7 @@ class TestSearchAuthors:
     @pytest.mark.asyncio
     async def test_search_authors_empty_results(self, mock_client: MagicMock) -> None:
         """Test search_authors returns message when no authors found."""
-        mock_client.get.return_value = {"total": 0, "data": []}
+        mock_client.get_with_retry.return_value = {"total": 0, "data": []}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.search_authors.fn("xyznonexistentauthor123")
@@ -431,7 +433,7 @@ class TestGetAuthorDetails:
     @pytest.mark.asyncio
     async def test_get_author_details_valid_id(self, mock_client: MagicMock) -> None:
         """Test get_author_details returns author for valid ID."""
-        mock_client.get.side_effect = [
+        mock_client.get_with_retry.side_effect = [
             SAMPLE_AUTHOR_RESPONSE,
             {"data": [SAMPLE_PAPER_RESPONSE]},
         ]
@@ -447,7 +449,7 @@ class TestGetAuthorDetails:
     @pytest.mark.asyncio
     async def test_get_author_details_invalid_id(self, mock_client: MagicMock) -> None:
         """Test get_author_details returns error message for invalid ID."""
-        mock_client.get.side_effect = NotFoundError("Author not found")
+        mock_client.get_with_retry.side_effect = NotFoundError("Author not found")
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_author_details.fn("nonexistent-author-id")
@@ -459,7 +461,7 @@ class TestGetAuthorDetails:
     @pytest.mark.asyncio
     async def test_get_author_details_without_papers(self, mock_client: MagicMock) -> None:
         """Test get_author_details with include_papers=False."""
-        mock_client.get.return_value = SAMPLE_AUTHOR_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_AUTHOR_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_author_details.fn("1234", include_papers=False)
@@ -467,12 +469,12 @@ class TestGetAuthorDetails:
         assert isinstance(result, AuthorWithPapers)
         assert result.papers is None
         # Only one call (author details, no papers)
-        assert mock_client.get.call_count == 1
+        assert mock_client.get_with_retry.call_count == 1
 
     @pytest.mark.asyncio
     async def test_get_author_details_with_papers_limit(self, mock_client: MagicMock) -> None:
         """Test get_author_details respects papers_limit."""
-        mock_client.get.side_effect = [
+        mock_client.get_with_retry.side_effect = [
             SAMPLE_AUTHOR_RESPONSE,
             {"data": [SAMPLE_PAPER_RESPONSE] * 5},
         ]
@@ -481,7 +483,7 @@ class TestGetAuthorDetails:
             await server.get_author_details.fn("1234", papers_limit=20)
 
         # Check the papers call used the limit
-        papers_call = mock_client.get.call_args_list[1]
+        papers_call = mock_client.get_with_retry.call_args_list[1]
         assert papers_call[1]["params"]["limit"] == 20
 
 
@@ -491,7 +493,7 @@ class TestGetRecommendations:
     @pytest.mark.asyncio
     async def test_get_recommendations_popular_paper(self, mock_client: MagicMock) -> None:
         """Test get_recommendations returns papers for popular paper."""
-        mock_client.get.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_recommendations.fn("649def34f8be52c8b66281af98ae884c09aef38b")
@@ -503,7 +505,7 @@ class TestGetRecommendations:
     @pytest.mark.asyncio
     async def test_get_recommendations_niche_paper(self, mock_client: MagicMock) -> None:
         """Test get_recommendations for niche paper with fewer recommendations."""
-        mock_client.get.return_value = {"recommendedPapers": [SAMPLE_PAPER_RESPONSE]}
+        mock_client.get_with_retry.return_value = {"recommendedPapers": [SAMPLE_PAPER_RESPONSE]}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_recommendations.fn("niche-paper-id")
@@ -514,7 +516,7 @@ class TestGetRecommendations:
     @pytest.mark.asyncio
     async def test_get_recommendations_no_recommendations(self, mock_client: MagicMock) -> None:
         """Test get_recommendations returns message when no recommendations."""
-        mock_client.get.return_value = {"recommendedPapers": []}
+        mock_client.get_with_retry.return_value = {"recommendedPapers": []}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_recommendations.fn("paper-no-recs")
@@ -525,7 +527,7 @@ class TestGetRecommendations:
     @pytest.mark.asyncio
     async def test_get_recommendations_not_found(self, mock_client: MagicMock) -> None:
         """Test get_recommendations handles not found error."""
-        mock_client.get.side_effect = NotFoundError("Paper not found")
+        mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_recommendations.fn("nonexistent-id")
@@ -536,12 +538,12 @@ class TestGetRecommendations:
     @pytest.mark.asyncio
     async def test_get_recommendations_with_pool_parameter(self, mock_client: MagicMock) -> None:
         """Test get_recommendations uses pool parameter correctly."""
-        mock_client.get.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             await server.get_recommendations.fn("paper-id", from_pool="all-cs")
 
-        call_args = mock_client.get.call_args
+        call_args = mock_client.get_with_retry.call_args
         assert call_args[1]["params"]["from"] == "all-cs"
 
     @pytest.mark.asyncio
@@ -549,12 +551,12 @@ class TestGetRecommendations:
         self, mock_client: MagicMock
     ) -> None:
         """Test get_recommendations defaults to 'recent' for invalid pool."""
-        mock_client.get.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+        mock_client.get_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             await server.get_recommendations.fn("paper-id", from_pool="invalid-pool")
 
-        call_args = mock_client.get.call_args
+        call_args = mock_client.get_with_retry.call_args
         assert call_args[1]["params"]["from"] == "recent"
 
 
@@ -564,7 +566,7 @@ class TestGetRelatedPapers:
     @pytest.mark.asyncio
     async def test_get_related_papers_single_positive(self, mock_client: MagicMock) -> None:
         """Test get_related_papers with single positive paper."""
-        mock_client.post.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+        mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_related_papers.fn(
@@ -578,20 +580,20 @@ class TestGetRelatedPapers:
     @pytest.mark.asyncio
     async def test_get_related_papers_multiple_positives(self, mock_client: MagicMock) -> None:
         """Test get_related_papers with multiple positive papers."""
-        mock_client.post.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+        mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_related_papers.fn(["paper1", "paper2", "paper3"])
 
         assert isinstance(result, list)
-        call_args = mock_client.post.call_args
+        call_args = mock_client.post_with_retry.call_args
         body = call_args[1]["json_data"]
         assert len(body["positivePaperIds"]) == 3
 
     @pytest.mark.asyncio
     async def test_get_related_papers_with_negatives(self, mock_client: MagicMock) -> None:
         """Test get_related_papers with positive and negative papers."""
-        mock_client.post.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+        mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_related_papers.fn(
@@ -600,7 +602,7 @@ class TestGetRelatedPapers:
             )
 
         assert isinstance(result, list)
-        call_args = mock_client.post.call_args
+        call_args = mock_client.post_with_retry.call_args
         body = call_args[1]["json_data"]
         assert body["positivePaperIds"] == ["paper1", "paper2"]
         assert body["negativePaperIds"] == ["paper3", "paper4"]
@@ -613,12 +615,12 @@ class TestGetRelatedPapers:
 
         assert isinstance(result, str)
         assert "At least one positive paper ID is required" in result
-        mock_client.post.assert_not_called()
+        mock_client.post_with_retry.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_related_papers_no_recommendations(self, mock_client: MagicMock) -> None:
         """Test get_related_papers returns message when no recommendations."""
-        mock_client.post.return_value = {"recommendedPapers": []}
+        mock_client.post_with_retry.return_value = {"recommendedPapers": []}
 
         with patch.object(server, "get_client", return_value=mock_client):
             result = await server.get_related_papers.fn(["paper1"])
@@ -629,10 +631,10 @@ class TestGetRelatedPapers:
     @pytest.mark.asyncio
     async def test_get_related_papers_with_limit(self, mock_client: MagicMock) -> None:
         """Test get_related_papers respects limit parameter."""
-        mock_client.post.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+        mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
         with patch.object(server, "get_client", return_value=mock_client):
             await server.get_related_papers.fn(["paper1"], limit=25)
 
-        call_args = mock_client.post.call_args
+        call_args = mock_client.post_with_retry.call_args
         assert call_args[1]["params"]["limit"] == 25

@@ -3,6 +3,76 @@
 from pydantic import BaseModel
 
 
+class AuthorExternalIds(BaseModel):
+    """External identifiers for an author.
+
+    Attributes:
+        ORCID: Open Researcher and Contributor ID.
+        DBLP: DBLP computer science bibliography ID.
+    """
+
+    ORCID: str | None = None
+    DBLP: str | None = None
+
+
+class PaperExternalIds(BaseModel):
+    """External identifiers for a paper.
+
+    Attributes:
+        DOI: Digital Object Identifier.
+        ArXiv: ArXiv preprint ID.
+        MAG: Microsoft Academic Graph ID.
+        ACL: ACL Anthology ID.
+        PubMed: PubMed ID.
+        PubMedCentral: PubMed Central ID.
+        DBLP: DBLP bibliography ID.
+        CorpusId: Semantic Scholar Corpus ID.
+    """
+
+    DOI: str | None = None
+    ArXiv: str | None = None
+    MAG: str | None = None
+    ACL: str | None = None
+    PubMed: str | None = None
+    PubMedCentral: str | None = None
+    DBLP: str | None = None
+    CorpusId: int | None = None
+
+
+class Journal(BaseModel):
+    """Journal publication information.
+
+    Attributes:
+        name: Journal name.
+        volume: Volume number.
+        pages: Page range (e.g., "1-10").
+    """
+
+    name: str | None = None
+    volume: str | None = None
+    pages: str | None = None
+
+
+class PublicationVenue(BaseModel):
+    """Publication venue information.
+
+    Attributes:
+        id: Venue ID.
+        name: Venue name.
+        type: Venue type (e.g., "journal", "conference").
+        alternate_names: Alternative names for the venue.
+        issn: ISSN for journals.
+        url: URL to the venue.
+    """
+
+    id: str | None = None
+    name: str | None = None
+    type: str | None = None
+    alternate_names: list[str] | None = None
+    issn: str | None = None
+    url: str | None = None
+
+
 class OpenAccessPdf(BaseModel):
     """Open access PDF information for a paper.
 
@@ -25,6 +95,9 @@ class Author(BaseModel):
         paperCount: Total number of papers by this author.
         citationCount: Total citation count across all papers.
         hIndex: Author's h-index.
+        aliases: Alternative names for the author.
+        homepage: Author's homepage URL.
+        externalIds: External identifiers (ORCID, DBLP).
     """
 
     authorId: str | None = None
@@ -33,6 +106,9 @@ class Author(BaseModel):
     paperCount: int | None = None
     citationCount: int | None = None
     hIndex: int | None = None
+    aliases: list[str] | None = None
+    homepage: str | None = None
+    externalIds: AuthorExternalIds | None = None
 
 
 class Tldr(BaseModel):
@@ -61,6 +137,10 @@ class Paper(BaseModel):
         publicationTypes: Types of publication (e.g., "JournalArticle").
         openAccessPdf: Open access PDF information.
         fieldsOfStudy: List of fields of study.
+        journal: Journal publication information.
+        externalIds: External identifiers (DOI, ArXiv, etc.).
+        publicationDate: Publication date in YYYY-MM-DD format.
+        publicationVenue: Detailed publication venue information.
     """
 
     paperId: str | None = None
@@ -73,6 +153,10 @@ class Paper(BaseModel):
     publicationTypes: list[str] | None = None
     openAccessPdf: OpenAccessPdf | None = None
     fieldsOfStudy: list[str] | None = None
+    journal: Journal | None = None
+    externalIds: PaperExternalIds | None = None
+    publicationDate: str | None = None
+    publicationVenue: PublicationVenue | None = None
 
 
 class PaperWithTldr(Paper):
@@ -188,3 +272,39 @@ class AuthorWithPapers(BaseModel):
     citationCount: int | None = None
     hIndex: int | None = None
     papers: list[Paper] | None = None
+
+
+class AuthorGroup(BaseModel):
+    """Group of potentially duplicate author records.
+
+    Used for author consolidation to show authors that may represent
+    the same person based on matching external IDs.
+
+    Attributes:
+        primary_author: The main author record (usually highest citation count).
+        candidates: Other author records that may be duplicates.
+        match_reasons: Reasons why these authors are grouped together.
+    """
+
+    primary_author: Author
+    candidates: list[Author]
+    match_reasons: list[str]
+
+
+class AuthorConsolidationResult(BaseModel):
+    """Result of author consolidation operation.
+
+    Attributes:
+        merged_author: The consolidated author record.
+        source_authors: Original author records that were merged.
+        match_type: Type of match that led to consolidation
+            ("orcid", "dblp", "user_confirmed").
+        confidence: Confidence score for the match (0.0 to 1.0).
+        is_preview: Whether this is a preview (True) or confirmed merge (False).
+    """
+
+    merged_author: Author
+    source_authors: list[Author]
+    match_type: str
+    confidence: float | None = None
+    is_preview: bool = True

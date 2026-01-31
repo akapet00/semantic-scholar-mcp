@@ -12,9 +12,21 @@ class RateLimitError(SemanticScholarError):
 
     The Semantic Scholar API allows 5,000 requests per 5 minutes for
     unauthenticated requests, or higher limits with an API key.
+
+    Attributes:
+        retry_after: Optional number of seconds to wait before retrying,
+            extracted from the Retry-After response header.
     """
 
-    pass
+    def __init__(self, message: str, retry_after: float | None = None) -> None:
+        """Initialize RateLimitError.
+
+        Args:
+            message: Error message describing the rate limit.
+            retry_after: Optional seconds to wait before retrying.
+        """
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class NotFoundError(SemanticScholarError):

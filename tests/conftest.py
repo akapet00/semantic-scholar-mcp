@@ -59,6 +59,7 @@ def create_mock_response(
     status_code: int = 200,
     json_data: dict[str, Any] | None = None,
     text: str = "",
+    headers: dict[str, str] | None = None,
 ) -> httpx.Response:
     """Create a mock httpx.Response object.
 
@@ -66,6 +67,7 @@ def create_mock_response(
         status_code: HTTP status code.
         json_data: JSON response data.
         text: Response text for error messages.
+        headers: Optional response headers.
 
     Returns:
         Mock httpx.Response object.
@@ -76,6 +78,7 @@ def create_mock_response(
     response.json.return_value = json_data or {}
     response.request = MagicMock()
     response.request.method = "GET"
+    response.headers = headers or {}
     return response
 
 

@@ -7,6 +7,7 @@ import httpx
 
 from semantic_scholar_mcp.config import settings
 from semantic_scholar_mcp.exceptions import NotFoundError, RateLimitError, SemanticScholarError
+from semantic_scholar_mcp.rate_limiter import RetryConfig, with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +102,20 @@ class SemanticScholarClient:
         )
 
         if response.status_code == 429:
+            # Extract Retry-After header if present
+            retry_after: float | None = None
+            retry_after_header = response.headers.get("Retry-After")
+            if retry_after_header is not None:
+                try:
+                    retry_after = float(retry_after_header)
+                except ValueError:
+                    pass
+
             raise RateLimitError(
                 "Rate limit exceeded. The Semantic Scholar API allows 5,000 requests "
                 "per 5 minutes for unauthenticated requests. Consider using an API key "
-                "for higher limits, or wait before retrying."
+                "for higher limits, or wait before retrying.",
+                retry_after=retry_after,
             )
 
         if response.status_code == 404:
@@ -192,6 +203,95 @@ class SemanticScholarClient:
         client = await self._get_client()
         response = await client.post(url, json=json_data, params=params)
         return await self._handle_response(response, endpoint)
+
+    def _get_retry_config(self) -> RetryConfig:
+        """Get retry configuration from settings.
+
+        Returns:
+            RetryConfig with values from environment settings.
+        """
+        return RetryConfig(
+            max_retries=settings.retry_max_attempts,
+            base_delay=settings.retry_base_delay,
+            max_delay=settings.retry_max_delay,
+        )
+
+    async def get_with_retry(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None = None,
+        use_recommendations_api: bool = False,
+    ) -> Any:
+        """Make a GET request with automatic retry on rate limit errors.
+
+        This method wraps the standard GET request with exponential backoff
+        retry logic. If auto-retry is disabled in settings, it behaves
+        identically to the regular get() method.
+
+        Args:
+            endpoint: API endpoint path (e.g., "/paper/search").
+            params: Optional query parameters.
+            use_recommendations_api: If True, use Recommendations API base URL.
+                Defaults to False (uses Graph API).
+
+        Returns:
+            Parsed JSON response data.
+
+        Raises:
+            RateLimitError: If rate limit is exceeded and all retries fail.
+            NotFoundError: If resource is not found.
+            SemanticScholarError: For other API errors.
+        """
+        if not settings.enable_auto_retry:
+            return await self.get(endpoint, params, use_recommendations_api)
+
+        return await with_retry(
+            self.get,
+            endpoint,
+            params,
+            use_recommendations_api,
+            config=self._get_retry_config(),
+        )
+
+    async def post_with_retry(
+        self,
+        endpoint: str,
+        json_data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        use_recommendations_api: bool = False,
+    ) -> Any:
+        """Make a POST request with automatic retry on rate limit errors.
+
+        This method wraps the standard POST request with exponential backoff
+        retry logic. If auto-retry is disabled in settings, it behaves
+        identically to the regular post() method.
+
+        Args:
+            endpoint: API endpoint path.
+            json_data: JSON body data to send.
+            params: Optional query parameters.
+            use_recommendations_api: If True, use Recommendations API base URL.
+                Defaults to False (uses Graph API).
+
+        Returns:
+            Parsed JSON response data.
+
+        Raises:
+            RateLimitError: If rate limit is exceeded and all retries fail.
+            NotFoundError: If resource is not found.
+            SemanticScholarError: For other API errors.
+        """
+        if not settings.enable_auto_retry:
+            return await self.post(endpoint, json_data, params, use_recommendations_api)
+
+        return await with_retry(
+            self.post,
+            endpoint,
+            json_data,
+            params,
+            use_recommendations_api,
+            config=self._get_retry_config(),
+        )
 
     async def __aenter__(self) -> "SemanticScholarClient":
         """Enter async context manager."""

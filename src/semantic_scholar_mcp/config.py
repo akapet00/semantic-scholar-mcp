@@ -10,6 +10,10 @@ class Settings:
         api_key: Optional Semantic Scholar API key for higher rate limits.
         graph_api_base_url: Base URL for the Graph API.
         recommendations_api_base_url: Base URL for the Recommendations API.
+        retry_max_attempts: Maximum number of retry attempts for rate limit errors.
+        retry_base_delay: Base delay in seconds for exponential backoff.
+        retry_max_delay: Maximum delay in seconds between retries.
+        enable_auto_retry: Whether to automatically retry on rate limit errors.
     """
 
     def __init__(self) -> None:
@@ -20,6 +24,21 @@ class Settings:
         )
         self.disable_ssl_verify: bool = (
             os.environ.get("DISABLE_SSL_VERIFY", "").lower() in ("true", "1", "yes")
+        )
+
+        # Retry configuration
+        self.retry_max_attempts: int = int(
+            os.environ.get("SS_RETRY_MAX_ATTEMPTS", "5")
+        )
+        self.retry_base_delay: float = float(
+            os.environ.get("SS_RETRY_BASE_DELAY", "1.0")
+        )
+        self.retry_max_delay: float = float(
+            os.environ.get("SS_RETRY_MAX_DELAY", "60.0")
+        )
+        self.enable_auto_retry: bool = (
+            os.environ.get("SS_ENABLE_AUTO_RETRY", "true").lower()
+            in ("true", "1", "yes")
         )
 
     @property

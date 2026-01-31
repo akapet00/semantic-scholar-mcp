@@ -106,6 +106,41 @@ If you prefer to run from a local clone:
 }
 ```
 
+## Updating the Server
+
+When installed via `git+https://...`, the package is cached locally. Changes pushed to GitHub are **not automatically pulled**.
+
+### Get the Latest Version
+
+**Claude Code:**
+
+```bash
+# Remove and re-add the server
+claude mcp remove semantic-scholar -s user
+claude mcp add semantic-scholar -s user -- uvx --from git+https://github.com/akapet00/semantic-scholar-mcp semantic-scholar-mcp
+```
+
+**Direct run with refresh:**
+
+```bash
+uvx --refresh --from git+https://github.com/akapet00/semantic-scholar-mcp semantic-scholar-mcp
+```
+
+### Pin to a Specific Version
+
+You can pin to a branch, tag, or commit for reproducible installations:
+
+```bash
+# Specific branch
+uvx --from git+https://github.com/akapet00/semantic-scholar-mcp@main semantic-scholar-mcp
+
+# Specific tag
+uvx --from git+https://github.com/akapet00/semantic-scholar-mcp@v0.1.0 semantic-scholar-mcp
+
+# Specific commit
+uvx --from git+https://github.com/akapet00/semantic-scholar-mcp@abc1234 semantic-scholar-mcp
+```
+
 ## API Key (Optional)
 
 The Semantic Scholar API works without an API key, but you can get one for higher rate limits:
