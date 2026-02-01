@@ -682,3 +682,24 @@ Append activity log at bottom. Follow the template:
 - pytest (integration): PASS (1 passed) - test passes when API rate limits are not exhausted
 
 **Blockers:** None
+
+### 2026-02-01 17:05 (CET)
+
+**Tasks completed:** US-1 through US-30
+
+**Current task:** US-31 - Create test_concurrency.py with paper tracker tests
+
+**Changes made:**
+- Created `tests/test_concurrency.py`
+  - Added `reset_tracker` autouse fixture
+  - Added `TestPaperTrackerConcurrency` class with:
+    - `test_concurrent_tracking()` with 10 threads tracking 100 papers each
+    - `test_concurrent_read_write()` with concurrent readers and writers
+
+**Verification:**
+- ruff format: PASS (1 file reformatted)
+- ruff check: PASS
+- ty check: PASS (3 pre-existing type errors: singleton pattern issues)
+- pytest: PASS (139 passed, 2 new tests)
+
+**Blockers:** None
