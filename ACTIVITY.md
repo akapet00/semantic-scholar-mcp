@@ -113,6 +113,30 @@ Append activity log at bottom. Follow the template:
 
 ---
 
+### 2026-02-01 22:26 (CET)
+
+**Tasks completed:** US-1, US-2, US-3, US-4, US-5, US-6, US-7, US-8
+
+**Current task:** US-9 - Add endpoint field to CacheEntry for pattern invalidation
+
+**Changes made:**
+- Modified `src/semantic_scholar_mcp/cache.py`:
+  - Added `endpoint: str` field to `CacheEntry` dataclass
+  - Updated docstring to document the new field
+  - Updated `set()` method to pass endpoint to CacheEntry constructor
+- Modified `tests/test_cache.py`:
+  - Updated 3 CacheEntry constructor calls to include the endpoint field
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing issues in other files)
+- pytest: PASS (184 passed, 6 deselected)
+
+**Blockers:** None
+
+---
+
 ### 2026-02-01 22:23 (CET)
 
 **Tasks completed:** US-1, US-2, US-3, US-4, US-5, US-6, US-7

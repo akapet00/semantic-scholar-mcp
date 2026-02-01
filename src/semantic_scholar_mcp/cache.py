@@ -20,10 +20,12 @@ class CacheEntry:
     Attributes:
         value: The cached response data.
         expires_at: Timestamp when this entry expires (using monotonic time).
+        endpoint: The original endpoint for pattern-based invalidation.
     """
 
     value: dict[str, Any]
     expires_at: float
+    endpoint: str
 
     @property
     def is_expired(self) -> bool:
@@ -149,7 +151,7 @@ class ResponseCache:
             while len(self._cache) >= self._config.max_entries:
                 self._cache.popitem(last=False)  # Remove oldest
 
-            self._cache[key] = CacheEntry(value=value, expires_at=expires_at)
+            self._cache[key] = CacheEntry(value=value, expires_at=expires_at, endpoint=endpoint)
             logger.debug("Cached response for %s (ttl=%ds)", endpoint, ttl)
 
     def clear(self) -> None:

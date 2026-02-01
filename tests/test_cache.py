@@ -12,12 +12,16 @@ class TestCacheEntry:
 
     def test_cache_entry_not_expired(self) -> None:
         """Test that a fresh cache entry is not expired."""
-        entry = CacheEntry(value={"data": "test"}, expires_at=time.monotonic() + 100)
+        entry = CacheEntry(
+            value={"data": "test"}, expires_at=time.monotonic() + 100, endpoint="/api/test"
+        )
         assert not entry.is_expired
 
     def test_cache_entry_expired(self) -> None:
         """Test that an old cache entry is expired."""
-        entry = CacheEntry(value={"data": "test"}, expires_at=time.monotonic() - 1)
+        entry = CacheEntry(
+            value={"data": "test"}, expires_at=time.monotonic() - 1, endpoint="/api/test"
+        )
         assert entry.is_expired
 
 
@@ -225,7 +229,9 @@ class TestResponseCacheDisabled:
 
         # Bypass disabled check for set by directly manipulating cache
         key = cache._make_key("/api/test", None)
-        cache._cache[key] = CacheEntry(value={"data": "test"}, expires_at=time.monotonic() + 100)
+        cache._cache[key] = CacheEntry(
+            value={"data": "test"}, expires_at=time.monotonic() + 100, endpoint="/api/test"
+        )
 
         # get() should still return None because cache is disabled
         result = cache.get("/api/test", None)
