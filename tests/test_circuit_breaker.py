@@ -109,6 +109,88 @@ class TestCircuitBreakerState:
         assert breaker.state == CircuitState.OPEN
 
 
+class TestHalfOpenCallLimiting:
+    """Tests for half-open call limiting behavior."""
+
+    @pytest.mark.asyncio
+    async def test_half_open_limits_concurrent_calls(self) -> None:
+        """Test that half-open state limits the number of test calls."""
+        config = CircuitBreakerConfig(
+            failure_threshold=2, recovery_timeout=0.01, half_open_max_calls=1
+        )
+        breaker = CircuitBreaker(config=config)
+
+        failing_func = AsyncMock(side_effect=Exception("Service error"))
+
+        # Open the circuit
+        for _ in range(2):
+            with pytest.raises(Exception, match="Service error"):
+                await breaker.call(failing_func)
+
+        assert breaker.state == CircuitState.OPEN
+
+        # Wait for recovery timeout to transition to HALF_OPEN
+        breaker._last_failure_time = time.monotonic() - 0.02
+
+        # First call in half-open should be allowed (transitions state)
+        # But it will fail because we're using failing_func
+        with pytest.raises(Exception, match="Service error"):
+            await breaker.call(failing_func)
+
+        # Circuit reopened due to failure
+        assert breaker.state == CircuitState.OPEN
+
+    @pytest.mark.asyncio
+    async def test_half_open_rejects_excess_calls(self) -> None:
+        """Test that excess calls in half-open state are rejected."""
+        config = CircuitBreakerConfig(
+            failure_threshold=2, recovery_timeout=0.01, half_open_max_calls=1
+        )
+        breaker = CircuitBreaker(config=config)
+
+        failing_func = AsyncMock(side_effect=Exception("Service error"))
+
+        # Open the circuit
+        for _ in range(2):
+            with pytest.raises(Exception, match="Service error"):
+                await breaker.call(failing_func)
+
+        # Manually set to half-open with 1 call already made
+        breaker._state = CircuitState.HALF_OPEN
+        breaker._half_open_calls = 1
+
+        # Next call should be rejected since max_calls (1) already made
+        with pytest.raises(CircuitOpenError, match="max half-open calls reached"):
+            await breaker.call(failing_func)
+
+    @pytest.mark.asyncio
+    async def test_half_open_calls_reset_on_transition(self) -> None:
+        """Test that half-open calls counter resets on state transition."""
+        config = CircuitBreakerConfig(failure_threshold=2, recovery_timeout=0.01)
+        breaker = CircuitBreaker(config=config)
+
+        failing_func = AsyncMock(side_effect=Exception("Service error"))
+
+        # Open the circuit
+        for _ in range(2):
+            with pytest.raises(Exception, match="Service error"):
+                await breaker.call(failing_func)
+
+        # Set some half-open calls
+        breaker._half_open_calls = 5
+
+        # Wait for recovery timeout
+        breaker._last_failure_time = time.monotonic() - 0.02
+
+        # Trigger state transition check by making a call
+        with pytest.raises(Exception, match="Service error"):
+            await breaker.call(failing_func)
+
+        # After transitioning to half-open and then back to open,
+        # we verify the counter was reset during the HALF_OPEN transition
+        # (this is implicit - if it wasn't reset, the call would have been rejected)
+
+
 class TestCircuitOpenError:
     """Tests for CircuitOpenError exception."""
 

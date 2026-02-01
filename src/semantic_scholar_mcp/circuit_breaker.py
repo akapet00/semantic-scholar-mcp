@@ -93,6 +93,14 @@ class CircuitBreaker:
             if self._state == CircuitState.OPEN:
                 raise CircuitOpenError("Circuit breaker is open. Service appears to be down.")
 
+            # Track and limit calls in half-open state
+            if self._state == CircuitState.HALF_OPEN:
+                if self._half_open_calls >= self.config.half_open_max_calls:
+                    raise CircuitOpenError(
+                        "Circuit breaker: max half-open calls reached, waiting for result"
+                    )
+                self._half_open_calls += 1
+
         try:
             result = await func(*args, **kwargs)
             await self._record_success()
