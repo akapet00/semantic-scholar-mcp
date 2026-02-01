@@ -10,7 +10,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import ClassVar
 
+from semantic_scholar_mcp.logging_config import get_logger
 from semantic_scholar_mcp.models import Paper
+
+logger = get_logger("paper_tracker")
 
 
 @dataclass
@@ -88,6 +91,7 @@ class PaperTracker:
                     paper=paper,
                     source_tool=source_tool,
                 )
+                logger.debug("Tracking paper: %s (source: %s)", paper.paperId, source_tool)
 
     def track_many(self, papers: list[Paper], source_tool: str) -> None:
         """Track multiple papers from a specific tool.
@@ -96,6 +100,7 @@ class PaperTracker:
             papers: List of papers to track.
             source_tool: Name of the tool that retrieved these papers.
         """
+        logger.debug("Tracking %d papers (source: %s)", len(papers), source_tool)
         for paper in papers:
             self.track(paper, source_tool)
 
@@ -178,7 +183,9 @@ class PaperTracker:
     def clear(self) -> None:
         """Clear all tracked papers (thread-safe)."""
         with self._papers_lock:
+            count = len(self._papers)
             self._papers.clear()
+            logger.info("Cleared %d tracked papers", count)
 
     def get_tool_summary(self) -> dict[str, int]:
         """Get a summary of papers by source tool (thread-safe).

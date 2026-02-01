@@ -49,7 +49,7 @@ Comprehensive improvement plan for the Semantic Scholar MCP server addressing 8 
       "Add INFO log in clear() method with count of cleared papers",
       "Typecheck passes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "feature",

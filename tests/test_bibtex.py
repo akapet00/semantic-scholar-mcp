@@ -1,6 +1,5 @@
 """Unit tests for the BibTeX export module."""
 
-
 from semantic_scholar_mcp.bibtex import (
     BibTeXEntry,
     BibTeXEntryType,
