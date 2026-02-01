@@ -16,8 +16,8 @@ Process **ONE task per iteration**. Each task (user story) from SPEC.md is self-
 ## Workflow (Every Iteration)
 
 ### Step 1: Read @SPEC.md
-Find the **first task** where `"passes": false` that is the top priority in your point of view.
-This is your task for this iteration.
+Find the **first task** (by ID order) where `"passes": false`.
+This is your task for this iteration. Always process tasks in ID order (US-1 before US-2, etc.).
 
 If no tasks have `"passes": false`, output:
 ```
