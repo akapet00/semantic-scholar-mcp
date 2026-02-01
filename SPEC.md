@@ -75,7 +75,7 @@ Comprehensive improvement plan for the Semantic Scholar MCP server addressing 8 
       "Add ConnectionError class for network/timeout issues",
       "Typecheck passes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "feature",

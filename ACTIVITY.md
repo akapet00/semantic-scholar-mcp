@@ -95,3 +95,23 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (132 passed)
 
 **Blockers:** None
+
+### 2026-02-01 16:17 (CET)
+
+**Tasks completed:** US-1, US-2, US-3, US-4
+
+**Current task:** US-5 - Add new exception classes to exceptions.py
+
+**Changes made:**
+- Modified `src/semantic_scholar_mcp/exceptions.py`
+- Added `ServerError` class with `status_code` attribute for 5xx errors
+- Added `AuthenticationError` class for 401/403 errors
+- Added `ConnectionError` class for network/timeout issues
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (2 pre-existing type errors unrelated to changes)
+- pytest: PASS (132 passed)
+
+**Blockers:** None

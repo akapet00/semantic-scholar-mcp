@@ -47,3 +47,42 @@ class ValidationError(SemanticScholarError):
     """
 
     pass
+
+
+class ServerError(SemanticScholarError):
+    """Raised when the Semantic Scholar API returns a 5xx server error.
+
+    This typically indicates a temporary issue with the API servers.
+    These errors are often transient and may succeed on retry.
+
+    Attributes:
+        status_code: The HTTP status code (5xx) returned by the server.
+    """
+
+    def __init__(self, message: str, status_code: int) -> None:
+        """Initialize ServerError.
+
+        Args:
+            message: Error message describing the server error.
+            status_code: The HTTP status code (e.g., 500, 502, 503).
+        """
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class AuthenticationError(SemanticScholarError):
+    """Raised when API key authentication fails.
+
+    This indicates the API key is invalid, expired, or lacks required permissions.
+    """
+
+    pass
+
+
+class ConnectionError(SemanticScholarError):
+    """Raised when unable to connect to the Semantic Scholar API.
+
+    This may indicate network issues, DNS failures, or API unavailability.
+    """
+
+    pass
