@@ -1,7 +1,8 @@
 """Unit tests for the Semantic Scholar MCP server tools."""
 
+from collections.abc import Generator
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -13,6 +14,17 @@ from semantic_scholar_mcp.models import (
     Paper,
     PaperWithTldr,
 )
+from semantic_scholar_mcp.tools import (
+    get_author_details,
+    get_paper_citations,
+    get_paper_details,
+    get_paper_references,
+    get_recommendations,
+    get_related_papers,
+    search_authors,
+    search_papers,
+)
+from semantic_scholar_mcp.tools._common import set_client_getter
 
 from .conftest import SAMPLE_AUTHOR_RESPONSE, SAMPLE_PAPER_RESPONSE
 
@@ -100,6 +112,13 @@ def mock_client() -> MagicMock:
     return mock
 
 
+@pytest.fixture(autouse=True)
+def mock_client_getter(mock_client: MagicMock) -> Generator[None]:
+    """Set mock client for all tests."""
+    set_client_getter(lambda: mock_client)
+    yield
+
+
 class TestSearchPapers:
     """Tests for the search_papers tool."""
 
@@ -125,8 +144,7 @@ class TestSearchPapers:
             ],
         }
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.search_papers.fn("attention mechanism")
+        result = await search_papers("attention mechanism")
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -139,8 +157,7 @@ class TestSearchPapers:
         """Test search_papers returns informative message when no results found."""
         mock_client.get_with_retry.return_value = {"total": 0, "data": []}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.search_papers.fn("xyznonexistentquery123")
+        result = await search_papers("xyznonexistentquery123")
 
         assert isinstance(result, str)
         assert "No papers found" in result
@@ -151,14 +168,13 @@ class TestSearchPapers:
         """Test search_papers applies filters correctly."""
         mock_client.get_with_retry.return_value = {"total": 1, "data": [SAMPLE_PAPER_RESPONSE]}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.search_papers.fn(
-                "transformers",
-                year="2020-2024",
-                min_citation_count=100,
-                fields_of_study=["Computer Science", "Medicine"],
-                limit=50,
-            )
+        result = await search_papers(
+            "transformers",
+            year="2020-2024",
+            min_citation_count=100,
+            fields_of_study=["Computer Science", "Medicine"],
+            limit=50,
+        )
 
         assert isinstance(result, list)
         call_args = mock_client.get_with_retry.call_args
@@ -173,16 +189,15 @@ class TestSearchPapers:
         """Test search_papers clamps limit to valid range."""
         mock_client.get_with_retry.return_value = {"total": 1, "data": [SAMPLE_PAPER_RESPONSE]}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            # Test limit below minimum
-            await server.search_papers.fn("test", limit=0)
-            call_args = mock_client.get_with_retry.call_args
-            assert call_args[1]["params"]["limit"] == 1
+        # Test limit below minimum
+        await search_papers("test", limit=0)
+        call_args = mock_client.get_with_retry.call_args
+        assert call_args[1]["params"]["limit"] == 1
 
-            # Test limit above maximum
-            await server.search_papers.fn("test", limit=200)
-            call_args = mock_client.get_with_retry.call_args
-            assert call_args[1]["params"]["limit"] == 100
+        # Test limit above maximum
+        await search_papers("test", limit=200)
+        call_args = mock_client.get_with_retry.call_args
+        assert call_args[1]["params"]["limit"] == 100
 
 
 class TestGetPaperDetails:
@@ -193,8 +208,7 @@ class TestGetPaperDetails:
         """Test get_paper_details returns paper for valid ID."""
         mock_client.get_with_retry.return_value = SAMPLE_PAPER_WITH_TLDR
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_details.fn("649def34f8be52c8b66281af98ae884c09aef38b")
+        result = await get_paper_details("649def34f8be52c8b66281af98ae884c09aef38b")
 
         assert isinstance(result, PaperWithTldr)
         assert result.title == "Attention Is All You Need"
@@ -206,8 +220,7 @@ class TestGetPaperDetails:
         """Test get_paper_details returns error message for invalid ID."""
         mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_details.fn("nonexistent-paper-id")
+        result = await get_paper_details("nonexistent-paper-id")
 
         assert isinstance(result, str)
         assert "not found" in result.lower()
@@ -218,8 +231,7 @@ class TestGetPaperDetails:
         """Test get_paper_details works with DOI format."""
         mock_client.get_with_retry.return_value = SAMPLE_PAPER_WITH_TLDR
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_details.fn("DOI:10.18653/v1/N18-3011")
+        result = await get_paper_details("DOI:10.18653/v1/N18-3011")
 
         assert isinstance(result, PaperWithTldr)
         call_args = mock_client.get_with_retry.call_args
@@ -230,8 +242,7 @@ class TestGetPaperDetails:
         """Test get_paper_details works with ArXiv format."""
         mock_client.get_with_retry.return_value = SAMPLE_PAPER_WITH_TLDR
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_details.fn("ARXIV:2106.15928")
+        result = await get_paper_details("ARXIV:2106.15928")
 
         assert isinstance(result, PaperWithTldr)
         call_args = mock_client.get_with_retry.call_args
@@ -242,10 +253,9 @@ class TestGetPaperDetails:
         """Test get_paper_details with include_tldr=False."""
         mock_client.get_with_retry.return_value = SAMPLE_PAPER_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_details.fn(
-                "649def34f8be52c8b66281af98ae884c09aef38b", include_tldr=False
-            )
+        result = await get_paper_details(
+            "649def34f8be52c8b66281af98ae884c09aef38b", include_tldr=False
+        )
 
         assert isinstance(result, PaperWithTldr)
         call_args = mock_client.get_with_retry.call_args
@@ -260,8 +270,7 @@ class TestGetPaperCitations:
         """Test get_paper_citations returns citing papers for well-cited paper."""
         mock_client.get_with_retry.return_value = SAMPLE_CITATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_citations.fn("649def34f8be52c8b66281af98ae884c09aef38b")
+        result = await get_paper_citations("649def34f8be52c8b66281af98ae884c09aef38b")
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -274,8 +283,7 @@ class TestGetPaperCitations:
         """Test get_paper_citations with paper having few citations."""
         mock_client.get_with_retry.return_value = {"data": [{"citingPaper": SAMPLE_PAPER_RESPONSE}]}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_citations.fn("paper-with-few-citations")
+        result = await get_paper_citations("paper-with-few-citations")
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -285,8 +293,7 @@ class TestGetPaperCitations:
         """Test get_paper_citations returns message for paper with no citations."""
         mock_client.get_with_retry.return_value = {"data": []}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_citations.fn("new-paper-no-citations")
+        result = await get_paper_citations("new-paper-no-citations")
 
         assert isinstance(result, str)
         assert "No citations found" in result
@@ -296,8 +303,7 @@ class TestGetPaperCitations:
         """Test get_paper_citations handles not found error."""
         mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_citations.fn("nonexistent-id")
+        result = await get_paper_citations("nonexistent-id")
 
         assert isinstance(result, str)
         assert "not found" in result.lower()
@@ -307,11 +313,10 @@ class TestGetPaperCitations:
         """Test get_paper_citations applies year filter."""
         mock_client.get_with_retry.return_value = SAMPLE_CITATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            await server.get_paper_citations.fn(
-                "649def34f8be52c8b66281af98ae884c09aef38b",
-                year="2020-2024",
-            )
+        await get_paper_citations(
+            "649def34f8be52c8b66281af98ae884c09aef38b",
+            year="2020-2024",
+        )
 
         call_args = mock_client.get_with_retry.call_args
         assert call_args[1]["params"]["year"] == "2020-2024"
@@ -325,10 +330,7 @@ class TestGetPaperReferences:
         """Test get_paper_references returns referenced papers."""
         mock_client.get_with_retry.return_value = SAMPLE_REFERENCE_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_references.fn(
-                "649def34f8be52c8b66281af98ae884c09aef38b"
-            )
+        result = await get_paper_references("649def34f8be52c8b66281af98ae884c09aef38b")
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -340,8 +342,7 @@ class TestGetPaperReferences:
         """Test get_paper_references with paper having few references."""
         mock_client.get_with_retry.return_value = {"data": [{"citedPaper": SAMPLE_PAPER_RESPONSE}]}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_references.fn("paper-with-few-references")
+        result = await get_paper_references("paper-with-few-references")
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -351,8 +352,7 @@ class TestGetPaperReferences:
         """Test get_paper_references returns message for paper with no references."""
         mock_client.get_with_retry.return_value = {"data": []}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_references.fn("paper-no-references")
+        result = await get_paper_references("paper-no-references")
 
         assert isinstance(result, str)
         assert "No references found" in result
@@ -362,8 +362,7 @@ class TestGetPaperReferences:
         """Test get_paper_references handles not found error."""
         mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_paper_references.fn("nonexistent-id")
+        result = await get_paper_references("nonexistent-id")
 
         assert isinstance(result, str)
         assert "not found" in result.lower()
@@ -392,8 +391,7 @@ class TestSearchAuthors:
             ],
         }
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.search_authors.fn("Smith")
+        result = await search_authors("Smith")
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -407,8 +405,7 @@ class TestSearchAuthors:
             "data": [SAMPLE_AUTHOR_RESPONSE],
         }
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.search_authors.fn("Ashish Vaswani")
+        result = await search_authors("Ashish Vaswani")
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -419,8 +416,7 @@ class TestSearchAuthors:
         """Test search_authors returns message when no authors found."""
         mock_client.get_with_retry.return_value = {"total": 0, "data": []}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.search_authors.fn("xyznonexistentauthor123")
+        result = await search_authors("xyznonexistentauthor123")
 
         assert isinstance(result, str)
         assert "No authors found" in result
@@ -438,8 +434,7 @@ class TestGetAuthorDetails:
             {"data": [SAMPLE_PAPER_RESPONSE]},
         ]
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_author_details.fn("1234")
+        result = await get_author_details("1234")
 
         assert isinstance(result, AuthorWithPapers)
         assert result.name == "Ashish Vaswani"
@@ -451,8 +446,7 @@ class TestGetAuthorDetails:
         """Test get_author_details returns error message for invalid ID."""
         mock_client.get_with_retry.side_effect = NotFoundError("Author not found")
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_author_details.fn("nonexistent-author-id")
+        result = await get_author_details("nonexistent-author-id")
 
         assert isinstance(result, str)
         assert "not found" in result.lower()
@@ -463,8 +457,7 @@ class TestGetAuthorDetails:
         """Test get_author_details with include_papers=False."""
         mock_client.get_with_retry.return_value = SAMPLE_AUTHOR_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_author_details.fn("1234", include_papers=False)
+        result = await get_author_details("1234", include_papers=False)
 
         assert isinstance(result, AuthorWithPapers)
         assert result.papers is None
@@ -479,8 +472,7 @@ class TestGetAuthorDetails:
             {"data": [SAMPLE_PAPER_RESPONSE] * 5},
         ]
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            await server.get_author_details.fn("1234", papers_limit=20)
+        await get_author_details("1234", papers_limit=20)
 
         # Check the papers call used the limit
         papers_call = mock_client.get_with_retry.call_args_list[1]
@@ -495,8 +487,7 @@ class TestGetRecommendations:
         """Test get_recommendations returns papers for popular paper."""
         mock_client.get_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_recommendations.fn("649def34f8be52c8b66281af98ae884c09aef38b")
+        result = await get_recommendations("649def34f8be52c8b66281af98ae884c09aef38b")
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -507,8 +498,7 @@ class TestGetRecommendations:
         """Test get_recommendations for niche paper with fewer recommendations."""
         mock_client.get_with_retry.return_value = {"recommendedPapers": [SAMPLE_PAPER_RESPONSE]}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_recommendations.fn("niche-paper-id")
+        result = await get_recommendations("niche-paper-id")
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -518,8 +508,7 @@ class TestGetRecommendations:
         """Test get_recommendations returns message when no recommendations."""
         mock_client.get_with_retry.return_value = {"recommendedPapers": []}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_recommendations.fn("paper-no-recs")
+        result = await get_recommendations("paper-no-recs")
 
         assert isinstance(result, str)
         assert "No recommendations found" in result
@@ -529,8 +518,7 @@ class TestGetRecommendations:
         """Test get_recommendations handles not found error."""
         mock_client.get_with_retry.side_effect = NotFoundError("Paper not found")
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_recommendations.fn("nonexistent-id")
+        result = await get_recommendations("nonexistent-id")
 
         assert isinstance(result, str)
         assert "not found" in result.lower()
@@ -540,8 +528,7 @@ class TestGetRecommendations:
         """Test get_recommendations uses pool parameter correctly."""
         mock_client.get_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            await server.get_recommendations.fn("paper-id", from_pool="all-cs")
+        await get_recommendations("paper-id", from_pool="all-cs")
 
         call_args = mock_client.get_with_retry.call_args
         assert call_args[1]["params"]["from"] == "all-cs"
@@ -553,8 +540,7 @@ class TestGetRecommendations:
         """Test get_recommendations defaults to 'recent' for invalid pool."""
         mock_client.get_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            await server.get_recommendations.fn("paper-id", from_pool="invalid-pool")
+        await get_recommendations("paper-id", from_pool="invalid-pool")
 
         call_args = mock_client.get_with_retry.call_args
         assert call_args[1]["params"]["from"] == "recent"
@@ -568,10 +554,7 @@ class TestGetRelatedPapers:
         """Test get_related_papers with single positive paper."""
         mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_related_papers.fn(
-                ["649def34f8be52c8b66281af98ae884c09aef38b"]
-            )
+        result = await get_related_papers(["649def34f8be52c8b66281af98ae884c09aef38b"])
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -582,8 +565,7 @@ class TestGetRelatedPapers:
         """Test get_related_papers with multiple positive papers."""
         mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_related_papers.fn(["paper1", "paper2", "paper3"])
+        result = await get_related_papers(["paper1", "paper2", "paper3"])
 
         assert isinstance(result, list)
         call_args = mock_client.post_with_retry.call_args
@@ -595,11 +577,10 @@ class TestGetRelatedPapers:
         """Test get_related_papers with positive and negative papers."""
         mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_related_papers.fn(
-                positive_paper_ids=["paper1", "paper2"],
-                negative_paper_ids=["paper3", "paper4"],
-            )
+        result = await get_related_papers(
+            positive_paper_ids=["paper1", "paper2"],
+            negative_paper_ids=["paper3", "paper4"],
+        )
 
         assert isinstance(result, list)
         call_args = mock_client.post_with_retry.call_args
@@ -610,8 +591,7 @@ class TestGetRelatedPapers:
     @pytest.mark.asyncio
     async def test_get_related_papers_no_positive_papers(self, mock_client: MagicMock) -> None:
         """Test get_related_papers returns error when no positive papers."""
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_related_papers.fn([])
+        result = await get_related_papers([])
 
         assert isinstance(result, str)
         assert "At least one positive paper ID is required" in result
@@ -622,8 +602,7 @@ class TestGetRelatedPapers:
         """Test get_related_papers returns message when no recommendations."""
         mock_client.post_with_retry.return_value = {"recommendedPapers": []}
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            result = await server.get_related_papers.fn(["paper1"])
+        result = await get_related_papers(["paper1"])
 
         assert isinstance(result, str)
         assert "No recommendations found" in result
@@ -633,8 +612,7 @@ class TestGetRelatedPapers:
         """Test get_related_papers respects limit parameter."""
         mock_client.post_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
 
-        with patch.object(server, "get_client", return_value=mock_client):
-            await server.get_related_papers.fn(["paper1"], limit=25)
+        await get_related_papers(["paper1"], limit=25)
 
         call_args = mock_client.post_with_retry.call_args
         assert call_args[1]["params"]["limit"] == 25

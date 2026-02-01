@@ -539,3 +539,36 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (137 passed)
 
 **Blockers:** None
+
+### 2026-02-01 16:58 (CET)
+
+**Tasks completed:** US-1 through US-24
+
+**Current task:** US-25 - Refactor server.py to use tools/ modules
+
+**Changes made:**
+- Rewrote `src/semantic_scholar_mcp/server.py` (~110 lines)
+  - Removed all tool function implementations
+  - Imported all tools from `semantic_scholar_mcp.tools`
+  - Imported `set_client_getter` from `tools._common`
+  - Called `set_client_getter(get_client)` to configure tools
+  - Registered all 13 tools with `mcp.tool()` decorator
+  - Kept FastMCP initialization, client management, and main()
+  - Initialized logging using `setup_logging()`
+- Updated `tests/test_server.py`
+  - Updated imports to use `semantic_scholar_mcp.tools`
+  - Added `mock_client_getter` autouse fixture using `set_client_getter`
+  - Removed `.fn` calls, now calling tools directly
+  - Removed `patch.object` calls
+- Updated `tests/test_author_consolidation.py`
+  - Updated imports to use `semantic_scholar_mcp.tools`
+  - Added `mock_client_getter` fixture
+  - Removed `.fn` calls
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing type errors: singleton pattern issues)
+- pytest: PASS (137 passed)
+
+**Blockers:** None

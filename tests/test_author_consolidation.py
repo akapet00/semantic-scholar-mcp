@@ -1,16 +1,23 @@
 """Unit tests for author consolidation functionality."""
 
+from collections.abc import Generator
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from semantic_scholar_mcp.exceptions import NotFoundError
 from semantic_scholar_mcp.models import (
     Author,
     AuthorConsolidationResult,
     AuthorExternalIds,
     AuthorGroup,
 )
+from semantic_scholar_mcp.tools import (
+    consolidate_authors,
+    find_duplicate_authors,
+)
+from semantic_scholar_mcp.tools._common import set_client_getter
 
 
 class TestAuthorGroup:
@@ -120,24 +127,27 @@ class TestFindDuplicateAuthors:
     @pytest.fixture
     def mock_client(self) -> MagicMock:
         """Create a mock client."""
-        return MagicMock()
+        mock = MagicMock()
+        mock.get_with_retry = AsyncMock()
+        return mock
+
+    @pytest.fixture(autouse=True)
+    def mock_client_getter(self, mock_client: MagicMock) -> Generator[None]:
+        """Set mock client for all tests."""
+        set_client_getter(lambda: mock_client)
+        yield
 
     @pytest.mark.asyncio
     async def test_find_duplicate_authors_empty_names(self) -> None:
         """Test that empty names list returns error message."""
-        from semantic_scholar_mcp.server import find_duplicate_authors
-
-        # Access the underlying function via .fn attribute
-        result = await find_duplicate_authors.fn([])
+        result = await find_duplicate_authors([])
 
         assert isinstance(result, str)
         assert "provide at least one" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_find_duplicate_authors_with_orcid_match(self) -> None:
+    async def test_find_duplicate_authors_with_orcid_match(self, mock_client: MagicMock) -> None:
         """Test finding duplicates by ORCID match."""
-        from semantic_scholar_mcp.server import find_duplicate_authors
-
         mock_response = {
             "total": 2,
             "data": [
@@ -156,12 +166,9 @@ class TestFindDuplicateAuthors:
             ],
         }
 
-        with patch("semantic_scholar_mcp.server.get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.get_with_retry = AsyncMock(return_value=mock_response)
-            mock_get_client.return_value = mock_client
+        mock_client.get_with_retry.return_value = mock_response
 
-            result = await find_duplicate_authors.fn(["John Smith"])
+        result = await find_duplicate_authors(["John Smith"])
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -170,10 +177,8 @@ class TestFindDuplicateAuthors:
         assert "same_orcid" in result[0].match_reasons[0]
 
     @pytest.mark.asyncio
-    async def test_find_duplicate_authors_no_duplicates(self) -> None:
+    async def test_find_duplicate_authors_no_duplicates(self, mock_client: MagicMock) -> None:
         """Test when no duplicates are found."""
-        from semantic_scholar_mcp.server import find_duplicate_authors
-
         mock_response = {
             "total": 2,
             "data": [
@@ -190,12 +195,9 @@ class TestFindDuplicateAuthors:
             ],
         }
 
-        with patch("semantic_scholar_mcp.server.get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.get_with_retry = AsyncMock(return_value=mock_response)
-            mock_get_client.return_value = mock_client
+        mock_client.get_with_retry.return_value = mock_response
 
-            result = await find_duplicate_authors.fn(["John Smith"])
+        result = await find_duplicate_authors(["John Smith"])
 
         assert isinstance(result, str)
         assert "no potential duplicate" in result.lower()
@@ -204,21 +206,30 @@ class TestFindDuplicateAuthors:
 class TestConsolidateAuthors:
     """Tests for consolidate_authors tool."""
 
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock client."""
+        mock = MagicMock()
+        mock.get_with_retry = AsyncMock()
+        return mock
+
+    @pytest.fixture(autouse=True)
+    def mock_client_getter(self, mock_client: MagicMock) -> Generator[None]:
+        """Set mock client for all tests."""
+        set_client_getter(lambda: mock_client)
+        yield
+
     @pytest.mark.asyncio
     async def test_consolidate_authors_requires_two_ids(self) -> None:
         """Test that at least two author IDs are required."""
-        from semantic_scholar_mcp.server import consolidate_authors
-
-        result = await consolidate_authors.fn(["single_id"])
+        result = await consolidate_authors(["single_id"])
 
         assert isinstance(result, str)
         assert "at least two" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_consolidate_authors_preview(self) -> None:
+    async def test_consolidate_authors_preview(self, mock_client: MagicMock) -> None:
         """Test preview mode of author consolidation."""
-        from semantic_scholar_mcp.server import consolidate_authors
-
         author1_response: dict[str, Any] = {
             "authorId": "1",
             "name": "John Smith",
@@ -238,12 +249,9 @@ class TestConsolidateAuthors:
             "externalIds": {"ORCID": "0000-0001-2345-6789"},
         }
 
-        with patch("semantic_scholar_mcp.server.get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.get_with_retry = AsyncMock(side_effect=[author1_response, author2_response])
-            mock_get_client.return_value = mock_client
+        mock_client.get_with_retry.side_effect = [author1_response, author2_response]
 
-            result = await consolidate_authors.fn(["1", "2"], confirm_merge=False)
+        result = await consolidate_authors(["1", "2"], confirm_merge=False)
 
         assert isinstance(result, AuthorConsolidationResult)
         assert result.merged_author.authorId == "1"  # Primary has higher citations
@@ -253,10 +261,8 @@ class TestConsolidateAuthors:
         assert result.confidence == 1.0
 
     @pytest.mark.asyncio
-    async def test_consolidate_authors_merges_affiliations(self) -> None:
+    async def test_consolidate_authors_merges_affiliations(self, mock_client: MagicMock) -> None:
         """Test that affiliations are merged correctly."""
-        from semantic_scholar_mcp.server import consolidate_authors
-
         author1_response: dict[str, Any] = {
             "authorId": "1",
             "name": "John Smith",
@@ -270,12 +276,9 @@ class TestConsolidateAuthors:
             "affiliations": ["Stanford", "MIT"],  # MIT duplicate
         }
 
-        with patch("semantic_scholar_mcp.server.get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.get_with_retry = AsyncMock(side_effect=[author1_response, author2_response])
-            mock_get_client.return_value = mock_client
+        mock_client.get_with_retry.side_effect = [author1_response, author2_response]
 
-            result = await consolidate_authors.fn(["1", "2"])
+        result = await consolidate_authors(["1", "2"])
 
         assert isinstance(result, AuthorConsolidationResult)
         affiliations = result.merged_author.affiliations or []
@@ -285,26 +288,18 @@ class TestConsolidateAuthors:
         assert affiliations.count("MIT") == 1  # No duplicates
 
     @pytest.mark.asyncio
-    async def test_consolidate_authors_not_found(self) -> None:
+    async def test_consolidate_authors_not_found(self, mock_client: MagicMock) -> None:
         """Test consolidation with non-existent author."""
-        from semantic_scholar_mcp.exceptions import NotFoundError
-        from semantic_scholar_mcp.server import consolidate_authors
+        mock_client.get_with_retry.side_effect = NotFoundError("Not found")
 
-        with patch("semantic_scholar_mcp.server.get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.get_with_retry = AsyncMock(side_effect=NotFoundError("Not found"))
-            mock_get_client.return_value = mock_client
-
-            result = await consolidate_authors.fn(["1", "2"])
+        result = await consolidate_authors(["1", "2"])
 
         assert isinstance(result, str)
         assert "not found" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_consolidate_authors_user_confirmed_match(self) -> None:
+    async def test_consolidate_authors_user_confirmed_match(self, mock_client: MagicMock) -> None:
         """Test consolidation without matching external IDs."""
-        from semantic_scholar_mcp.server import consolidate_authors
-
         author1_response: dict[str, Any] = {
             "authorId": "1",
             "name": "John Smith",
@@ -318,12 +313,9 @@ class TestConsolidateAuthors:
             "externalIds": {"ORCID": "0000-0002-2222-2222"},
         }
 
-        with patch("semantic_scholar_mcp.server.get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.get_with_retry = AsyncMock(side_effect=[author1_response, author2_response])
-            mock_get_client.return_value = mock_client
+        mock_client.get_with_retry.side_effect = [author1_response, author2_response]
 
-            result = await consolidate_authors.fn(["1", "2"])
+        result = await consolidate_authors(["1", "2"])
 
         assert isinstance(result, AuthorConsolidationResult)
         assert result.match_type == "user_confirmed"
