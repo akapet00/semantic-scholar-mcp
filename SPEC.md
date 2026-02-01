@@ -199,7 +199,7 @@ Comprehensive improvement plan for the Semantic Scholar MCP server addressing 8 
       "Implement CacheConfig dataclass with enabled, default_ttl, paper_details_ttl, search_ttl, max_entries",
       "Typecheck passes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "feature",

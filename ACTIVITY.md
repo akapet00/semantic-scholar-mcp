@@ -299,3 +299,22 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (137 passed)
 
 **Blockers:** None
+
+### 2026-02-01 16:32 (CET)
+
+**Tasks completed:** US-1 through US-13
+
+**Current task:** US-14 - Create cache.py module with CacheEntry and CacheConfig
+
+**Changes made:**
+- Created `src/semantic_scholar_mcp/cache.py`
+  - Implemented `CacheEntry` dataclass with value and expires_at, plus is_expired property
+  - Implemented `CacheConfig` dataclass with enabled, default_ttl, paper_details_ttl, search_ttl, max_entries
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (2 pre-existing type errors unrelated to changes)
+- pytest: PASS (137 passed)
+
+**Blockers:** None
