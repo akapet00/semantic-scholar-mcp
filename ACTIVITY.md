@@ -113,6 +113,34 @@ Append activity log at bottom. Follow the template:
 
 ---
 
+### 2026-02-01 22:10 (CET)
+
+**Tasks completed:** US-1, US-2, US-3, US-4, US-5, US-6
+
+**Current task:** US-7 - Optimize LRU cache with OrderedDict
+
+**Changes made:**
+- Modified `src/semantic_scholar_mcp/cache.py`:
+  - Added import for `OrderedDict` from collections
+  - Replaced `_cache: dict[str, CacheEntry]` with `OrderedDict[str, CacheEntry]`
+  - Removed `_access_order` list field entirely
+  - Updated `get()` method to use `move_to_end(key)` for O(1) LRU update
+  - Updated `set()` method to use `popitem(last=False)` for O(1) eviction
+  - Updated `set()` to delete key before re-adding to move existing keys to end
+  - Updated `clear()` to remove reference to `_access_order`
+- Modified `tests/test_cache.py`:
+  - Removed assertion for `_access_order` in `test_clear_removes_all_entries()`
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing issues in other files)
+- pytest: PASS (184 passed, 6 deselected)
+
+**Blockers:** None
+
+---
+
 ### 2026-02-01 21:56 (CET)
 
 **Tasks completed:** US-1, US-2, US-3, US-4, US-5

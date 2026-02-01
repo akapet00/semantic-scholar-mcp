@@ -4,6 +4,7 @@ import hashlib
 import json
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
@@ -66,8 +67,7 @@ class ResponseCache:
             config: Cache configuration. Uses defaults if not provided.
         """
         self._config = config or CacheConfig()
-        self._cache: dict[str, CacheEntry] = {}
-        self._access_order: list[str] = []  # For LRU eviction
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self._lock = threading.Lock()
         self._stats = {"hits": 0, "misses": 0}
 
@@ -101,15 +101,11 @@ class ResponseCache:
 
             if entry.is_expired:
                 del self._cache[key]
-                if key in self._access_order:
-                    self._access_order.remove(key)
                 self._stats["misses"] += 1
                 return None
 
-            # Update access order for LRU
-            if key in self._access_order:
-                self._access_order.remove(key)
-            self._access_order.append(key)
+            # Move to end for LRU (O(1) with OrderedDict)
+            self._cache.move_to_end(key)
 
             self._stats["hits"] += 1
             logger.debug("Cache hit for %s", endpoint)
@@ -145,24 +141,21 @@ class ResponseCache:
         expires_at = time.monotonic() + ttl
 
         with self._lock:
-            # Evict if at capacity (LRU)
+            # If key exists, remove it first (will be re-added at end)
+            if key in self._cache:
+                del self._cache[key]
+
+            # Evict oldest if at capacity (O(1) with OrderedDict)
             while len(self._cache) >= self._config.max_entries:
-                if self._access_order:
-                    oldest_key = self._access_order.pop(0)
-                    self._cache.pop(oldest_key, None)
+                self._cache.popitem(last=False)  # Remove oldest
 
             self._cache[key] = CacheEntry(value=value, expires_at=expires_at)
-            if key in self._access_order:
-                self._access_order.remove(key)
-            self._access_order.append(key)
-
             logger.debug("Cached response for %s (ttl=%ds)", endpoint, ttl)
 
     def clear(self) -> None:
         """Clear all cached entries."""
         with self._lock:
             self._cache.clear()
-            self._access_order.clear()
             self._stats = {"hits": 0, "misses": 0}
 
     def get_stats(self) -> dict[str, Any]:

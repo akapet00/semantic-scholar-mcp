@@ -281,7 +281,6 @@ class TestResponseCacheClear:
         cache.clear()
 
         assert len(cache._cache) == 0
-        assert len(cache._access_order) == 0
 
     def test_clear_resets_stats(self) -> None:
         """Test that clear() resets statistics."""
