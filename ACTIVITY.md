@@ -495,3 +495,25 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (137 passed)
 
 **Blockers:** None
+
+### 2026-02-01 16:50 (CET)
+
+**Tasks completed:** US-1 through US-22
+
+**Current task:** US-23 - Extract tracking tools to tools/tracking.py
+
+**Changes made:**
+- Created `src/semantic_scholar_mcp/tools/tracking.py`
+- Moved `list_tracked_papers` function from server.py
+- Moved `clear_tracked_papers` function from server.py
+- Moved `export_bibtex` function from server.py
+- Updated imports to use `_common` module (get_client, get_tracker, DEFAULT_PAPER_FIELDS)
+- Removed `@mcp.tool()` decorators (will be applied in server.py during US-25)
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing type errors: singleton pattern issues)
+- pytest: PASS (137 passed)
+
+**Blockers:** None
