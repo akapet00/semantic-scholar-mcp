@@ -40,6 +40,8 @@ def mock_settings_no_api_key() -> Generator[MagicMock]:
         mock_settings.recommendations_api_base_url = (
             "https://api.semanticscholar.org/recommendations/v1"
         )
+        mock_settings.circuit_failure_threshold = 5
+        mock_settings.circuit_recovery_timeout = 30.0
         yield mock_settings
 
 
@@ -53,6 +55,8 @@ def mock_settings_with_api_key() -> Generator[MagicMock]:
         mock_settings.recommendations_api_base_url = (
             "https://api.semanticscholar.org/recommendations/v1"
         )
+        mock_settings.circuit_failure_threshold = 5
+        mock_settings.circuit_recovery_timeout = 30.0
         yield mock_settings
 
 

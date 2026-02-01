@@ -6,6 +6,11 @@ from typing import Any
 import httpx
 
 from semantic_scholar_mcp.cache import get_cache
+from semantic_scholar_mcp.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitOpenError,
+)
 from semantic_scholar_mcp.config import settings
 from semantic_scholar_mcp.exceptions import (
     AuthenticationError,
@@ -59,6 +64,12 @@ class SemanticScholarClient:
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
         self._rate_limiter: TokenBucket = create_rate_limiter(settings.has_api_key)
+        self._circuit_breaker = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=settings.circuit_failure_threshold,
+                recovery_timeout=settings.circuit_recovery_timeout,
+            )
+        )
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers including API key if configured.
@@ -166,6 +177,52 @@ class SemanticScholarClient:
             f"API error ({response.status_code}) for {endpoint}: {response.text}"
         )
 
+    async def _do_get(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None,
+        use_recommendations_api: bool,
+    ) -> Any:
+        """Internal GET request logic (called by circuit breaker).
+
+        Args:
+            endpoint: API endpoint path.
+            params: Optional query parameters.
+            use_recommendations_api: If True, use Recommendations API base URL.
+
+        Returns:
+            Parsed JSON response data.
+
+        Raises:
+            RateLimitError: If rate limit is exceeded.
+            NotFoundError: If resource is not found.
+            ConnectionError: If connection fails or times out.
+            SemanticScholarError: For other API errors.
+        """
+        base_url = (
+            self.recommendations_api_base_url
+            if use_recommendations_api
+            else self.graph_api_base_url
+        )
+        url = f"{base_url}{endpoint}"
+
+        logger.info("API request: method=GET endpoint=%s params=%s", endpoint, params)
+
+        # Acquire rate limit token before making request
+        wait_time = await self._rate_limiter.acquire()
+        if wait_time > 0:
+            logger.debug("Rate limiter: waited %.2fs before request", wait_time)
+
+        client = await self._get_client()
+        try:
+            response = await client.get(url, params=params)
+        except httpx.ConnectError as e:
+            raise ConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
+        except httpx.TimeoutException as e:
+            raise ConnectionError(f"Request timed out: {e}") from e
+
+        return await self._handle_response(response, endpoint)
+
     async def get(
         self,
         endpoint: str,
@@ -189,54 +246,41 @@ class SemanticScholarClient:
             ConnectionError: If connection fails or times out.
             SemanticScholarError: For other API errors.
         """
-        # Check cache first
+        # Check cache first (before circuit breaker)
         cache = get_cache()
         cached = cache.get(endpoint, params)
         if cached is not None:
             return cached
 
-        base_url = (
-            self.recommendations_api_base_url
-            if use_recommendations_api
-            else self.graph_api_base_url
-        )
-        url = f"{base_url}{endpoint}"
-
-        logger.info("API request: method=GET endpoint=%s params=%s", endpoint, params)
-
-        # Acquire rate limit token before making request
-        wait_time = await self._rate_limiter.acquire()
-        if wait_time > 0:
-            logger.debug("Rate limiter: waited %.2fs before request", wait_time)
-
-        client = await self._get_client()
+        # Use circuit breaker for the actual request
         try:
-            response = await client.get(url, params=params)
-        except httpx.ConnectError as e:
-            raise ConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
-        except httpx.TimeoutException as e:
-            raise ConnectionError(f"Request timed out: {e}") from e
+            result = await self._circuit_breaker.call(
+                self._do_get, endpoint, params, use_recommendations_api
+            )
+        except CircuitOpenError:
+            raise ConnectionError(
+                "Service temporarily unavailable. The circuit breaker is open "
+                "due to repeated failures."
+            ) from None
 
         # Cache successful response
-        result = await self._handle_response(response, endpoint)
         cache.set(endpoint, params, result)
         return result
 
-    async def post(
+    async def _do_post(
         self,
         endpoint: str,
-        json_data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        use_recommendations_api: bool = False,
+        json_data: dict[str, Any] | None,
+        params: dict[str, Any] | None,
+        use_recommendations_api: bool,
     ) -> Any:
-        """Make a POST request to the Semantic Scholar API.
+        """Internal POST request logic (called by circuit breaker).
 
         Args:
             endpoint: API endpoint path.
             json_data: JSON body data to send.
             params: Optional query parameters.
             use_recommendations_api: If True, use Recommendations API base URL.
-                Defaults to False (uses Graph API).
 
         Returns:
             Parsed JSON response data.
@@ -268,7 +312,44 @@ class SemanticScholarClient:
             raise ConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
         except httpx.TimeoutException as e:
             raise ConnectionError(f"Request timed out: {e}") from e
+
         return await self._handle_response(response, endpoint)
+
+    async def post(
+        self,
+        endpoint: str,
+        json_data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        use_recommendations_api: bool = False,
+    ) -> Any:
+        """Make a POST request to the Semantic Scholar API.
+
+        Args:
+            endpoint: API endpoint path.
+            json_data: JSON body data to send.
+            params: Optional query parameters.
+            use_recommendations_api: If True, use Recommendations API base URL.
+                Defaults to False (uses Graph API).
+
+        Returns:
+            Parsed JSON response data.
+
+        Raises:
+            RateLimitError: If rate limit is exceeded.
+            NotFoundError: If resource is not found.
+            ConnectionError: If connection fails or times out.
+            SemanticScholarError: For other API errors.
+        """
+        # Use circuit breaker for the actual request
+        try:
+            return await self._circuit_breaker.call(
+                self._do_post, endpoint, json_data, params, use_recommendations_api
+            )
+        except CircuitOpenError:
+            raise ConnectionError(
+                "Service temporarily unavailable. The circuit breaker is open "
+                "due to repeated failures."
+            ) from None
 
     def _get_retry_config(self) -> RetryConfig:
         """Get retry configuration from settings.
