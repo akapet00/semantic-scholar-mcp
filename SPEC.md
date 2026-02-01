@@ -412,7 +412,7 @@ Comprehensive improvement plan for the Semantic Scholar MCP server addressing 8 
       "Implement test_search_with_year_filter() testing year range filter",
       "All tests pass (with -m integration)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "testing",

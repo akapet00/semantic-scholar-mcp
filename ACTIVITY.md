@@ -612,3 +612,27 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (137 passed)
 
 **Blockers:** None
+
+### 2026-02-01 16:58 (CET)
+
+**Tasks completed:** US-1 through US-27
+
+**Current task:** US-28 - Create test_integration.py with search tests
+
+**Changes made:**
+- Created `tests/test_integration.py`
+  - Added `pytestmark = pytest.mark.integration` to mark all tests as integration tests
+  - Created `real_client` async fixture using `pytest_asyncio.fixture` to create `SemanticScholarClient`
+  - Created `reset_tracker_integration` autouse fixture to reset tracker between tests
+  - Implemented `TestSearchIntegration` class with:
+    - `test_search_real_papers()` testing "attention is all you need" query returns results
+    - `test_search_with_year_filter()` testing year range filter (2020-2024)
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing type errors: singleton pattern issues)
+- pytest (unit): PASS (137 passed)
+- pytest (integration): PASS (2 passed) - requires `DISABLE_SSL_VERIFY=true` due to network environment
+
+**Blockers:** None
