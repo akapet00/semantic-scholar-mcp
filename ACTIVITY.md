@@ -113,6 +113,29 @@ Append activity log at bottom. Follow the template:
 
 ---
 
+### 2026-02-01 22:35 (CET)
+
+**Tasks completed:** US-1, US-2, US-3, US-4, US-5, US-6, US-7, US-8, US-9, US-10
+
+**Current task:** US-11 - Add cache tests for OrderedDict and POST caching
+
+**Changes made:**
+- Modified `tests/test_cache.py`:
+  - Added `TestResponseCacheInvalidate` class with 2 tests:
+    - `test_pattern_invalidation()` - verifies only matching entries are removed
+    - `test_pattern_invalidation_no_match()` - verifies no entries removed when pattern doesn't match
+  - Note: LRU eviction tests already exist (`test_lru_eviction_at_max_entries`, `test_accessing_entry_updates_lru_order`)
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing issues in other files)
+- pytest: PASS (186 passed, 6 deselected - 2 new tests added)
+
+**Blockers:** None
+
+---
+
 ### 2026-02-01 22:27 (CET)
 
 **Tasks completed:** US-1, US-2, US-3, US-4, US-5, US-6, US-7, US-8, US-9

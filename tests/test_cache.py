@@ -301,3 +301,47 @@ class TestResponseCacheClear:
         stats = cache.get_stats()
         assert stats["hits"] == 0
         assert stats["misses"] == 0
+
+
+class TestResponseCacheInvalidate:
+    """Tests for ResponseCache invalidate() method."""
+
+    def test_pattern_invalidation(self) -> None:
+        """Test that invalidate() only removes entries matching the pattern."""
+        cache = ResponseCache()
+
+        # Add entries with different endpoints
+        cache.set("/paper/123", None, {"data": "paper1"})
+        cache.set("/paper/456", None, {"data": "paper2"})
+        cache.set("/author/789", None, {"data": "author"})
+        cache.set("/search", None, {"data": "search"})
+
+        # Invalidate only paper entries
+        count = cache.invalidate("/paper/")
+
+        # Should have removed 2 paper entries
+        assert count == 2
+        assert cache.get("/paper/123", None) is None
+        assert cache.get("/paper/456", None) is None
+
+        # Other entries should remain
+        assert cache.get("/author/789", None) is not None
+        assert cache.get("/search", None) is not None
+
+    def test_pattern_invalidation_no_match(self) -> None:
+        """Test that invalidate() removes nothing when pattern doesn't match."""
+        cache = ResponseCache()
+
+        # Add entries
+        cache.set("/paper/123", None, {"data": "paper1"})
+        cache.set("/author/789", None, {"data": "author"})
+
+        # Invalidate with non-matching pattern
+        count = cache.invalidate("/nonexistent/")
+
+        # Should have removed 0 entries
+        assert count == 0
+
+        # All entries should remain
+        assert cache.get("/paper/123", None) is not None
+        assert cache.get("/author/789", None) is not None
