@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from semantic_scholar_mcp.cache import get_cache
 from semantic_scholar_mcp.config import settings
 from semantic_scholar_mcp.exceptions import (
     AuthenticationError,
@@ -188,6 +189,12 @@ class SemanticScholarClient:
             ConnectionError: If connection fails or times out.
             SemanticScholarError: For other API errors.
         """
+        # Check cache first
+        cache = get_cache()
+        cached = cache.get(endpoint, params)
+        if cached is not None:
+            return cached
+
         base_url = (
             self.recommendations_api_base_url
             if use_recommendations_api
@@ -209,7 +216,11 @@ class SemanticScholarClient:
             raise ConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
         except httpx.TimeoutException as e:
             raise ConnectionError(f"Request timed out: {e}") from e
-        return await self._handle_response(response, endpoint)
+
+        # Cache successful response
+        result = await self._handle_response(response, endpoint)
+        cache.set(endpoint, params, result)
+        return result
 
     async def post(
         self,

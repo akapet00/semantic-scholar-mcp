@@ -8,7 +8,17 @@ import httpx
 import pytest
 import pytest_asyncio
 
+from semantic_scholar_mcp.cache import get_cache
 from semantic_scholar_mcp.client import SemanticScholarClient
+
+
+@pytest.fixture(autouse=True)
+def reset_cache() -> Generator[None]:
+    """Reset the cache before each test to ensure test isolation."""
+    cache = get_cache()
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture

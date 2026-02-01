@@ -363,3 +363,26 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (137 passed)
 
 **Blockers:** None
+
+### 2026-02-01 16:36 (CET)
+
+**Tasks completed:** US-1 through US-16
+
+**Current task:** US-17 - Integrate cache into client.py
+
+**Changes made:**
+- Modified `src/semantic_scholar_mcp/client.py`
+  - Imported `get_cache` from cache module
+  - Check cache before making request in `get()` method
+  - Return cached response if available and not expired
+  - Cache successful responses after API call
+- Modified `tests/conftest.py`
+  - Added `reset_cache()` autouse fixture that clears cache before/after each test
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 type errors: pre-existing singleton pattern issues)
+- pytest: PASS (137 passed)
+
+**Blockers:** None
