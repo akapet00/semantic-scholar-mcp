@@ -482,7 +482,7 @@ Comprehensive improvement plan for the Semantic Scholar MCP server addressing 8 
       "Remove patch.object and .fn calls, call tools directly",
       "All tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "testing",

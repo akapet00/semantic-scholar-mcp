@@ -724,3 +724,24 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (140 passed, 1 new test)
 
 **Blockers:** None
+
+### 2026-02-01 17:07 (CET)
+
+**Tasks completed:** US-1 through US-32
+
+**Current task:** US-33 - Update test_server.py imports for new tools structure
+
+**Changes made:**
+- No changes needed - all US-33 requirements were already completed as part of US-25:
+  - test_server.py already imports from `semantic_scholar_mcp.tools` (papers, authors, recommendations via package __init__.py)
+  - test_server.py already imports `set_client_getter` from `tools._common`
+  - test_server.py already has `mock_client_getter` fixture using `set_client_getter`
+  - test_server.py already calls tools directly without `.fn` or `patch.object`
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing type errors: singleton pattern issues)
+- pytest test_server.py: PASS (37 passed)
+
+**Blockers:** None
