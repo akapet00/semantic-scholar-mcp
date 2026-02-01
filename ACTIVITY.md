@@ -771,3 +771,30 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (146 passed, 6 new tests)
 
 **Blockers:** None
+
+### 2026-02-01 17:10 (CET)
+
+**Tasks completed:** US-1 through US-34
+
+**Current task:** US-35 - Add unit tests for CircuitBreaker
+
+**Changes made:**
+- Created `tests/test_circuit_breaker.py`
+  - Added `TestCircuitBreakerState` class with:
+    - `test_circuit_starts_closed()` - verifies circuit starts in CLOSED state
+    - `test_circuit_opens_after_failure_threshold()` - verifies opening after threshold failures
+    - `test_circuit_transitions_to_half_open_after_recovery_timeout()` - verifies HALF_OPEN transition
+    - `test_circuit_closes_on_success_in_half_open()` - verifies closing on success
+    - `test_circuit_reopens_on_failure_in_half_open()` - verifies reopening on failure
+  - Added `TestCircuitOpenError` class with:
+    - `test_circuit_open_error_raised_when_circuit_is_open()` - verifies error is raised
+  - Added `TestCircuitBreakerConfig` class with config tests
+  - Added `TestCircuitBreakerReset` class with reset functionality tests
+
+**Verification:**
+- ruff format: PASS (29 files unchanged)
+- ruff check: PASS
+- ty check: PASS (3 pre-existing type errors: singleton pattern issues)
+- pytest: PASS (155 passed, 9 new tests)
+
+**Blockers:** None

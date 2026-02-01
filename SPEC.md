@@ -514,7 +514,7 @@ Comprehensive improvement plan for the Semantic Scholar MCP server addressing 8 
       "Test CircuitOpenError raised when circuit is OPEN",
       "All tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "testing",
