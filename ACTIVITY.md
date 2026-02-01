@@ -255,3 +255,26 @@ Append activity log at bottom. Follow the template:
 - pytest: PASS (137 passed)
 
 **Blockers:** None
+
+### 2026-02-01 16:30 (CET)
+
+**Tasks completed:** US-1 through US-11
+
+**Current task:** US-12 - Create circuit_breaker.py module
+
+**Changes made:**
+- Created `src/semantic_scholar_mcp/circuit_breaker.py`
+  - Implemented `CircuitState` enum with CLOSED, OPEN, HALF_OPEN states
+  - Implemented `CircuitBreakerConfig` dataclass with failure_threshold, recovery_timeout, half_open_max_calls
+  - Implemented `CircuitBreaker` dataclass with `call()` method
+  - Implemented state transitions: CLOSED->OPEN on threshold, OPEN->HALF_OPEN on timeout, HALF_OPEN->CLOSED on success
+  - Created `CircuitOpenError` exception class
+  - Added logging for state transitions
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (2 pre-existing type errors unrelated to changes)
+- pytest: PASS (137 passed)
+
+**Blockers:** None
