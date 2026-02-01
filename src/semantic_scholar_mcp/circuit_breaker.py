@@ -8,6 +8,13 @@ from typing import Any, TypeVar
 
 from semantic_scholar_mcp.logging_config import get_logger
 
+__all__ = [
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitOpenError",
+    "CircuitState",
+]
+
 logger = get_logger("circuit_breaker")
 
 T = TypeVar("T")

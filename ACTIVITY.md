@@ -113,6 +113,26 @@ Append activity log at bottom. Follow the template:
 
 ---
 
+### 2026-02-01 22:37 (CET)
+
+**Tasks completed:** US-1, US-2, US-3, US-4, US-5, US-6, US-7, US-8, US-9, US-10, US-11, US-12
+
+**Current task:** US-13 - Add __all__ exports to circuit_breaker.py
+
+**Changes made:**
+- Modified `src/semantic_scholar_mcp/circuit_breaker.py`:
+  - Added `__all__` list exporting `CircuitBreaker`, `CircuitBreakerConfig`, `CircuitOpenError`, `CircuitState`
+
+**Verification:**
+- ruff format: PASS
+- ruff check: PASS
+- ty check: PASS (3 pre-existing issues in other files)
+- pytest: PASS (186 passed, 6 deselected)
+
+**Blockers:** None
+
+---
+
 ### 2026-02-01 22:36 (CET)
 
 **Tasks completed:** US-1, US-2, US-3, US-4, US-5, US-6, US-7, US-8, US-9, US-10, US-11
