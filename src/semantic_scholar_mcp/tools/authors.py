@@ -398,9 +398,7 @@ async def consolidate_authors(
 
     # Check for DBLP match
     dblps = [
-        _normalize_dblp(a.externalIds.DBLP)
-        for a in authors
-        if a.externalIds and a.externalIds.DBLP
+        _normalize_dblp(a.externalIds.DBLP) for a in authors if a.externalIds and a.externalIds.DBLP
     ]
     dblps = [d for d in dblps if d is not None]  # Filter out None values
     if match_type == "user_confirmed" and len(dblps) >= 2 and len(set(dblps)) == 1:

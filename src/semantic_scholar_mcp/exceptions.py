@@ -69,7 +69,7 @@ class AuthenticationError(SemanticScholarError):
     pass
 
 
-class ConnectionError(SemanticScholarError):
+class APIConnectionError(SemanticScholarError):
     """Raised when unable to connect to the Semantic Scholar API.
 
     This may indicate network issues, DNS failures, or API unavailability.

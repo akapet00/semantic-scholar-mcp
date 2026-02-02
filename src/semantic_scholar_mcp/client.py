@@ -13,8 +13,8 @@ from semantic_scholar_mcp.circuit_breaker import (
 )
 from semantic_scholar_mcp.config import settings
 from semantic_scholar_mcp.exceptions import (
+    APIConnectionError,
     AuthenticationError,
-    ConnectionError,
     NotFoundError,
     RateLimitError,
     SemanticScholarError,
@@ -52,8 +52,8 @@ def _is_circuit_breaker_error(error: Exception) -> bool:
     if isinstance(error, ServerError):
         return True
 
-    # Our custom ConnectionError (wrapped from httpx errors) should trip circuit breaker
-    if isinstance(error, ConnectionError):
+    # Our custom APIConnectionError (wrapped from httpx errors) should trip circuit breaker
+    if isinstance(error, APIConnectionError):
         return True
 
     # Rate limit (429) and not found (404) should NOT trip circuit breaker
@@ -263,7 +263,7 @@ class SemanticScholarClient:
             an exception that should not trip the circuit breaker.
 
         Raises:
-            ConnectionError: If connection fails or times out.
+            APIConnectionError: If connection fails or times out.
             ServerError: If server returns 5xx error.
         """
         base_url = (
@@ -284,9 +284,9 @@ class SemanticScholarClient:
         try:
             response = await client.get(url, params=params)
         except httpx.ConnectError as e:
-            raise ConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
+            raise APIConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
         except httpx.TimeoutException as e:
-            raise ConnectionError(f"Request timed out: {e}") from e
+            raise APIConnectionError(f"Request timed out: {e}") from e
 
         try:
             return await self._handle_response(response, endpoint)
@@ -317,7 +317,7 @@ class SemanticScholarClient:
         Raises:
             RateLimitError: If rate limit is exceeded.
             NotFoundError: If resource is not found.
-            ConnectionError: If connection fails or times out.
+            APIConnectionError: If connection fails or times out.
             SemanticScholarError: For other API errors.
         """
         # Check cache first (before circuit breaker)
@@ -332,7 +332,7 @@ class SemanticScholarClient:
                 self._do_get, endpoint, params, use_recommendations_api
             )
         except CircuitOpenError:
-            raise ConnectionError(
+            raise APIConnectionError(
                 "Service temporarily unavailable. The circuit breaker is open "
                 "due to repeated failures."
             ) from None
@@ -365,7 +365,7 @@ class SemanticScholarClient:
             an exception that should not trip the circuit breaker.
 
         Raises:
-            ConnectionError: If connection fails or times out.
+            APIConnectionError: If connection fails or times out.
             ServerError: If server returns 5xx error.
         """
         base_url = (
@@ -386,9 +386,9 @@ class SemanticScholarClient:
         try:
             response = await client.post(url, json=json_data, params=params)
         except httpx.ConnectError as e:
-            raise ConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
+            raise APIConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
         except httpx.TimeoutException as e:
-            raise ConnectionError(f"Request timed out: {e}") from e
+            raise APIConnectionError(f"Request timed out: {e}") from e
 
         try:
             return await self._handle_response(response, endpoint)
@@ -421,7 +421,7 @@ class SemanticScholarClient:
         Raises:
             RateLimitError: If rate limit is exceeded.
             NotFoundError: If resource is not found.
-            ConnectionError: If connection fails or times out.
+            APIConnectionError: If connection fails or times out.
             SemanticScholarError: For other API errors.
         """
         # Check cache for cacheable POST endpoints
@@ -440,7 +440,7 @@ class SemanticScholarClient:
                 self._do_post, endpoint, json_data, params, use_recommendations_api
             )
         except CircuitOpenError:
-            raise ConnectionError(
+            raise APIConnectionError(
                 "Service temporarily unavailable. The circuit breaker is open "
                 "due to repeated failures."
             ) from None

@@ -7,8 +7,8 @@ import pytest
 
 from semantic_scholar_mcp.client import SemanticScholarClient
 from semantic_scholar_mcp.exceptions import (
+    APIConnectionError,
     AuthenticationError,
-    ConnectionError,
     NotFoundError,
     RateLimitError,
     SemanticScholarError,
@@ -192,14 +192,14 @@ class TestNotFoundError:
             assert "/paper/nonexistent-id" in error_message
 
 
-class TestConnectionErrorHandling:
+class TestAPIConnectionErrorHandling:
     """Tests for connection error handling."""
 
     @pytest.mark.asyncio
     async def test_timeout_raises_connection_error(
         self, mock_settings_no_api_key: MagicMock
     ) -> None:
-        """Test that timeout errors are wrapped in ConnectionError."""
+        """Test that timeout errors are wrapped in APIConnectionError."""
         with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.is_closed = False
@@ -208,7 +208,7 @@ class TestConnectionErrorHandling:
             mock_client_class.return_value = mock_client
 
             async with SemanticScholarClient() as client:
-                with pytest.raises(ConnectionError) as exc_info:
+                with pytest.raises(APIConnectionError) as exc_info:
                     await client.get("/paper/search")
 
             error_message = str(exc_info.value)
@@ -218,7 +218,7 @@ class TestConnectionErrorHandling:
     async def test_connect_error_raises_connection_error(
         self, mock_settings_no_api_key: MagicMock
     ) -> None:
-        """Test that connection errors are wrapped in ConnectionError."""
+        """Test that connection errors are wrapped in APIConnectionError."""
         with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.is_closed = False
@@ -227,7 +227,7 @@ class TestConnectionErrorHandling:
             mock_client_class.return_value = mock_client
 
             async with SemanticScholarClient() as client:
-                with pytest.raises(ConnectionError) as exc_info:
+                with pytest.raises(APIConnectionError) as exc_info:
                     await client.get("/paper/search")
 
             error_message = str(exc_info.value)
@@ -237,7 +237,7 @@ class TestConnectionErrorHandling:
     async def test_post_timeout_raises_connection_error(
         self, mock_settings_no_api_key: MagicMock
     ) -> None:
-        """Test that POST timeout errors are wrapped in ConnectionError."""
+        """Test that POST timeout errors are wrapped in APIConnectionError."""
         with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.is_closed = False
@@ -246,7 +246,7 @@ class TestConnectionErrorHandling:
             mock_client_class.return_value = mock_client
 
             async with SemanticScholarClient() as client:
-                with pytest.raises(ConnectionError) as exc_info:
+                with pytest.raises(APIConnectionError) as exc_info:
                     await client.post("/papers/", json_data={"positivePaperIds": ["123"]})
 
             error_message = str(exc_info.value)
@@ -256,7 +256,7 @@ class TestConnectionErrorHandling:
     async def test_post_connect_error_raises_connection_error(
         self, mock_settings_no_api_key: MagicMock
     ) -> None:
-        """Test that POST connection errors are wrapped in ConnectionError."""
+        """Test that POST connection errors are wrapped in APIConnectionError."""
         with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.is_closed = False
@@ -265,7 +265,7 @@ class TestConnectionErrorHandling:
             mock_client_class.return_value = mock_client
 
             async with SemanticScholarClient() as client:
-                with pytest.raises(ConnectionError) as exc_info:
+                with pytest.raises(APIConnectionError) as exc_info:
                     await client.post("/papers/", json_data={"positivePaperIds": ["123"]})
 
             error_message = str(exc_info.value)
@@ -472,11 +472,11 @@ class TestCircuitBreakerIntegration:
             async with SemanticScholarClient() as client:
                 # Make requests until circuit opens
                 for i in range(3):
-                    with pytest.raises(ConnectionError):
+                    with pytest.raises(APIConnectionError):
                         await client.get("/paper/search")
 
                 # Next request should fail fast due to open circuit
-                with pytest.raises(ConnectionError) as exc_info:
+                with pytest.raises(APIConnectionError) as exc_info:
                     await client.get("/paper/search")
 
                 # Verify it's a circuit breaker error, not a connection error
@@ -498,13 +498,13 @@ class TestCircuitBreakerIntegration:
             async with SemanticScholarClient() as client:
                 # Trip the circuit breaker
                 for _ in range(2):
-                    with pytest.raises(ConnectionError):
+                    with pytest.raises(APIConnectionError):
                         await client.get("/paper/search")
 
                 # Verify subsequent requests fail fast
                 call_count_before = mock_client.get.call_count
 
-                with pytest.raises(ConnectionError) as exc_info:
+                with pytest.raises(APIConnectionError) as exc_info:
                     await client.get("/paper/search")
 
                 # No new network call should have been made
@@ -530,7 +530,7 @@ class TestCircuitBreakerIntegration:
             async with SemanticScholarClient() as client:
                 # Trip the circuit breaker
                 for _ in range(2):
-                    with pytest.raises(ConnectionError):
+                    with pytest.raises(APIConnectionError):
                         await client.get("/paper/search")
 
                 # Wait for recovery timeout
@@ -542,7 +542,7 @@ class TestCircuitBreakerIntegration:
                 # The call will fail but it proves we got past the open state
                 call_count_before = mock_client.get.call_count
 
-                with pytest.raises(ConnectionError):
+                with pytest.raises(APIConnectionError):
                     await client.get("/paper/search")
 
                 # A new network call should have been made
@@ -578,7 +578,7 @@ class TestCircuitBreakerIntegration:
             async with SemanticScholarClient() as client:
                 # Trip the circuit breaker
                 for _ in range(2):
-                    with pytest.raises(ConnectionError):
+                    with pytest.raises(APIConnectionError):
                         await client.get("/paper/search")
 
                 # Wait for recovery timeout

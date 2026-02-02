@@ -24,7 +24,7 @@ Code quality improvements for the Semantic Scholar MCP server addressing technic
       "All tests pass (uv run pytest)",
       "No ruff errors (uv run ruff check src/ tests/)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
