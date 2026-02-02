@@ -8,11 +8,11 @@ class AuthorExternalIds(BaseModel):
 
     Attributes:
         ORCID: Open Researcher and Contributor ID.
-        DBLP: DBLP computer science bibliography ID.
+        DBLP: DBLP computer science bibliography ID (can be a string or list of strings).
     """
 
     ORCID: str | None = None
-    DBLP: str | None = None
+    DBLP: str | list[str] | None = None
 
 
 class PaperExternalIds(BaseModel):
@@ -301,6 +301,8 @@ class AuthorConsolidationResult(BaseModel):
             ("orcid", "dblp", "user_confirmed").
         confidence: Confidence score for the match (0.0 to 1.0).
         is_preview: Whether this is a preview (True) or confirmed merge (False).
+        notes: Explanatory notes about the merged record (e.g., why certain
+            fields like h-index cannot be computed for merged profiles).
     """
 
     merged_author: Author
@@ -308,3 +310,28 @@ class AuthorConsolidationResult(BaseModel):
     match_type: str
     confidence: float | None = None
     is_preview: bool = True
+    notes: list[str] | None = None
+
+
+class AuthorTopPapers(BaseModel):
+    """Result of fetching an author's most cited papers.
+
+    Provides a summary of an author's most influential work by citation count,
+    which is more efficient than fetching all papers when you just need the
+    most impactful publications.
+
+    Attributes:
+        author_id: The Semantic Scholar author ID.
+        author_name: The author's name.
+        total_papers: Total number of papers by this author.
+        total_citations: Total citation count across all papers.
+        papers_fetched: Number of papers fetched to find top N.
+        top_papers: The top N papers sorted by citation count (highest first).
+    """
+
+    author_id: str
+    author_name: str | None = None
+    total_papers: int | None = None
+    total_citations: int | None = None
+    papers_fetched: int = 0
+    top_papers: list[Paper] = []

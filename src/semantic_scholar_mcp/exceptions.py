@@ -39,16 +39,6 @@ class NotFoundError(SemanticScholarError):
     pass
 
 
-class ValidationError(SemanticScholarError):
-    """Raised when input validation fails.
-
-    This can occur when required parameters are missing or have
-    invalid values.
-    """
-
-    pass
-
-
 class ServerError(SemanticScholarError):
     """Raised when the Semantic Scholar API returns a 5xx server error.
 

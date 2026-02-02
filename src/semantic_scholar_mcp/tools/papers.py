@@ -17,6 +17,7 @@ from semantic_scholar_mcp.tools._common import (
     PAPER_FIELDS_WITH_TLDR,
     get_client,
     get_tracker,
+    paper_not_found_message,
 )
 
 
@@ -89,7 +90,7 @@ async def search_papers(
     result = SearchResult(**response)
 
     # Handle empty results
-    if not result.data or len(result.data) == 0:
+    if not result.data:
         return (
             f"No papers found matching '{query}'. Try broadening your search terms, "
             "removing filters, or using different keywords."
@@ -153,11 +154,7 @@ async def get_paper_details(
     try:
         response = await client.get_with_retry(f"/paper/{paper_id}", params=params)
     except NotFoundError:
-        return (
-            f"Paper not found with ID '{paper_id}'. Please verify the ID is correct. "
-            "For DOIs, use format 'DOI:10.xxxx/xxxxx'. "
-            "For ArXiv IDs, use format 'ARXIV:xxxx.xxxxx'."
-        )
+        return paper_not_found_message(paper_id)
 
     # Parse and return response
     paper = PaperWithTldr(**response)
@@ -225,11 +222,7 @@ async def get_paper_citations(
     try:
         response = await client.get_with_retry(f"/paper/{paper_id}/citations", params=params)
     except NotFoundError:
-        return (
-            f"Paper not found with ID '{paper_id}'. Please verify the ID is correct. "
-            "For DOIs, use format 'DOI:10.xxxx/xxxxx'. "
-            "For ArXiv IDs, use format 'ARXIV:xxxx.xxxxx'."
-        )
+        return paper_not_found_message(paper_id)
 
     # Parse response - citations come as list of {citingPaper: {...}}
     data = response.get("data", [])
@@ -303,11 +296,7 @@ async def get_paper_references(
     try:
         response = await client.get_with_retry(f"/paper/{paper_id}/references", params=params)
     except NotFoundError:
-        return (
-            f"Paper not found with ID '{paper_id}'. Please verify the ID is correct. "
-            "For DOIs, use format 'DOI:10.xxxx/xxxxx'. "
-            "For ArXiv IDs, use format 'ARXIV:xxxx.xxxxx'."
-        )
+        return paper_not_found_message(paper_id)
 
     # Parse response - references come as list of {citedPaper: {...}}
     data = response.get("data", [])

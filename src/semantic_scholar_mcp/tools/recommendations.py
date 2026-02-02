@@ -13,6 +13,7 @@ from semantic_scholar_mcp.tools._common import (
     DEFAULT_PAPER_FIELDS,
     get_client,
     get_tracker,
+    paper_not_found_message,
 )
 
 
@@ -81,11 +82,7 @@ async def get_recommendations(
             use_recommendations_api=True,
         )
     except NotFoundError:
-        return (
-            f"Paper not found with ID '{paper_id}'. Please verify the ID is correct. "
-            "For DOIs, use format 'DOI:10.xxxx/xxxxx'. "
-            "For ArXiv IDs, use format 'ARXIV:xxxx.xxxxx'."
-        )
+        return paper_not_found_message(paper_id)
 
     # Parse response
     result = RecommendationResult(**response)
@@ -160,7 +157,7 @@ async def get_related_papers(
         ... )
     """
     # Validate that at least one positive paper ID is provided
-    if not positive_paper_ids or len(positive_paper_ids) == 0:
+    if not positive_paper_ids:
         return (
             "At least one positive paper ID is required. Please provide one or more "
             "paper IDs as examples of the type of papers you want to find."

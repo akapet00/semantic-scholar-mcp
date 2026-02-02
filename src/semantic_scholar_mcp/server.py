@@ -17,6 +17,7 @@ from semantic_scholar_mcp.tools import (
     export_bibtex,
     find_duplicate_authors,
     get_author_details,
+    get_author_top_papers,
     get_paper_citations,
     get_paper_details,
     get_paper_references,
@@ -89,6 +90,7 @@ mcp.tool()(get_paper_citations)
 mcp.tool()(get_paper_references)
 mcp.tool()(search_authors)
 mcp.tool()(get_author_details)
+mcp.tool()(get_author_top_papers)
 mcp.tool()(find_duplicate_authors)
 mcp.tool()(consolidate_authors)
 mcp.tool()(get_recommendations)
@@ -97,7 +99,7 @@ mcp.tool()(list_tracked_papers)
 mcp.tool()(clear_tracked_papers)
 mcp.tool()(export_bibtex)
 
-logger.info("Registered %d MCP tools", 13)
+logger.info("Registered %d MCP tools", 14)
 
 
 def main() -> None:

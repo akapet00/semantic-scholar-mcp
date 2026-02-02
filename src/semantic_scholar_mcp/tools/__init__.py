@@ -11,6 +11,7 @@ from semantic_scholar_mcp.tools.authors import (
     consolidate_authors,
     find_duplicate_authors,
     get_author_details,
+    get_author_top_papers,
     search_authors,
 )
 from semantic_scholar_mcp.tools.papers import (
@@ -38,6 +39,7 @@ __all__ = [
     # Authors
     "search_authors",
     "get_author_details",
+    "get_author_top_papers",
     "find_duplicate_authors",
     "consolidate_authors",
     # Recommendations

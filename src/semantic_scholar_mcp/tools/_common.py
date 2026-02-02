@@ -19,11 +19,27 @@ DEFAULT_PAPER_FIELDS = (
 
 # Default fields to request from the API for comprehensive author data
 DEFAULT_AUTHOR_FIELDS = (
-    "authorId,name,affiliations,paperCount,citationCount,hIndex,externalIds,aliases,homepage"
+    "authorId,name,affiliations,paperCount,citationCount,hIndex,externalIds,homepage"
 )
 
 # Fields to request when TLDR is included
 PAPER_FIELDS_WITH_TLDR = f"{DEFAULT_PAPER_FIELDS},tldr"
+
+
+def paper_not_found_message(paper_id: str) -> str:
+    """Generate a user-friendly error message for paper not found errors.
+
+    Args:
+        paper_id: The paper ID that was not found.
+
+    Returns:
+        A formatted error message with guidance on paper ID formats.
+    """
+    return (
+        f"Paper not found with ID '{paper_id}'. Please verify the ID is correct. "
+        "For DOIs, use format 'DOI:10.xxxx/xxxxx'. "
+        "For ArXiv IDs, use format 'ARXIV:xxxx.xxxxx'."
+    )
 
 
 def get_tracker() -> PaperTracker:

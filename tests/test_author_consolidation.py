@@ -18,6 +18,7 @@ from semantic_scholar_mcp.tools import (
     find_duplicate_authors,
 )
 from semantic_scholar_mcp.tools._common import set_client_getter
+from semantic_scholar_mcp.tools.authors import _normalize_dblp
 
 
 class TestAuthorGroup:
@@ -119,6 +120,46 @@ class TestAuthorExternalIds:
 
         assert ids.ORCID == "0000-0001-2345-6789"
         assert ids.DBLP is None
+
+    def test_external_ids_dblp_as_list(self) -> None:
+        """Test AuthorExternalIds with DBLP as a list (API can return this format)."""
+        ids = AuthorExternalIds(
+            ORCID="0000-0001-2345-6789",
+            DBLP=["homepages/s/JohnSmith"],
+        )
+
+        assert ids.ORCID == "0000-0001-2345-6789"
+        assert ids.DBLP == ["homepages/s/JohnSmith"]
+
+    def test_external_ids_dblp_as_empty_list(self) -> None:
+        """Test AuthorExternalIds with DBLP as an empty list."""
+        ids = AuthorExternalIds(DBLP=[])
+
+        assert ids.DBLP == []
+
+
+class TestNormalizeDblp:
+    """Tests for _normalize_dblp helper function."""
+
+    def test_normalize_dblp_string(self) -> None:
+        """Test normalizing DBLP when it's already a string."""
+        assert _normalize_dblp("homepages/s/JohnSmith") == "homepages/s/JohnSmith"
+
+    def test_normalize_dblp_list_single(self) -> None:
+        """Test normalizing DBLP when it's a list with one element."""
+        assert _normalize_dblp(["homepages/s/JohnSmith"]) == "homepages/s/JohnSmith"
+
+    def test_normalize_dblp_list_multiple(self) -> None:
+        """Test normalizing DBLP when it's a list with multiple elements (takes first)."""
+        assert _normalize_dblp(["first", "second"]) == "first"
+
+    def test_normalize_dblp_empty_list(self) -> None:
+        """Test normalizing DBLP when it's an empty list."""
+        assert _normalize_dblp([]) is None
+
+    def test_normalize_dblp_none(self) -> None:
+        """Test normalizing DBLP when it's None."""
+        assert _normalize_dblp(None) is None
 
 
 class TestFindDuplicateAuthors:

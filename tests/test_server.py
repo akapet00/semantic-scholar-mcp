@@ -387,6 +387,8 @@ class TestSearchAuthors:
                     "paperCount": 100,
                     "citationCount": 5000,
                     "hIndex": 15,
+                    "externalIds": None,
+                    "homepage": None,
                 },
             ],
         }

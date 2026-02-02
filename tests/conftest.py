@@ -140,6 +140,8 @@ SAMPLE_AUTHOR_RESPONSE: dict[str, Any] = {
     "paperCount": 50,
     "citationCount": 150000,
     "hIndex": 25,
+    "externalIds": {"ORCID": None, "DBLP": None},
+    "homepage": None,
 }
 
 SAMPLE_SEARCH_RESPONSE: dict[str, Any] = {

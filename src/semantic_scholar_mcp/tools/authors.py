@@ -11,6 +11,7 @@ from semantic_scholar_mcp.models import (
     AuthorGroup,
     AuthorPapersResult,
     AuthorSearchResult,
+    AuthorTopPapers,
     AuthorWithPapers,
     Paper,
 )
@@ -20,6 +21,25 @@ from semantic_scholar_mcp.tools._common import (
     get_client,
     get_tracker,
 )
+
+
+def _normalize_dblp(dblp: str | list[str] | None) -> str | None:
+    """Normalize DBLP field to a string.
+
+    The Semantic Scholar API may return DBLP as either a string or a list of strings.
+    This function normalizes it to a single string for consistent handling.
+
+    Args:
+        dblp: DBLP value from the API (string, list of strings, or None).
+
+    Returns:
+        The first DBLP value as a string, or None if not available.
+    """
+    if dblp is None:
+        return None
+    if isinstance(dblp, list):
+        return dblp[0] if dblp else None
+    return dblp
 
 
 async def search_authors(
@@ -71,7 +91,7 @@ async def search_authors(
     result = AuthorSearchResult(**response)
 
     # Handle empty results
-    if not result.data or len(result.data) == 0:
+    if not result.data:
         return (
             f"No authors found matching '{query}'. Try using the author's full name, "
             "a different spelling, or check for any accents or special characters."
@@ -210,9 +230,10 @@ async def find_duplicate_authors(
             response = await client.get_with_retry("/author/search", params=params)
             result = AuthorSearchResult(**response)
             all_authors.extend(result.data)
-        except Exception:
-            # Continue with other names if one fails
+        except NotFoundError:
+            # Name not found is expected, continue with other names
             continue
+        # Let other exceptions (RateLimitError, ServerError, etc.) propagate
 
     if not all_authors:
         return (
@@ -226,10 +247,12 @@ async def find_duplicate_authors(
     seen_author_ids: set[str] = set()
 
     for author in all_authors:
-        if author.authorId and author.authorId in seen_author_ids:
+        # Skip authors without authorId - can't deduplicate them reliably
+        if not author.authorId:
             continue
-        if author.authorId:
-            seen_author_ids.add(author.authorId)
+        if author.authorId in seen_author_ids:
+            continue
+        seen_author_ids.add(author.authorId)
 
         if match_by_orcid and author.externalIds and author.externalIds.ORCID:
             orcid = author.externalIds.ORCID
@@ -238,10 +261,11 @@ async def find_duplicate_authors(
             orcid_groups[orcid].append(author)
 
         if match_by_dblp and author.externalIds and author.externalIds.DBLP:
-            dblp = author.externalIds.DBLP
-            if dblp not in dblp_groups:
-                dblp_groups[dblp] = []
-            dblp_groups[dblp].append(author)
+            dblp = _normalize_dblp(author.externalIds.DBLP)
+            if dblp is not None:
+                if dblp not in dblp_groups:
+                    dblp_groups[dblp] = []
+                dblp_groups[dblp].append(author)
 
     # Create author groups from matches
     author_groups: list[AuthorGroup] = []
@@ -373,7 +397,12 @@ async def consolidate_authors(
         confidence = 1.0
 
     # Check for DBLP match
-    dblps = [a.externalIds.DBLP for a in authors if a.externalIds and a.externalIds.DBLP]
+    dblps = [
+        _normalize_dblp(a.externalIds.DBLP)
+        for a in authors
+        if a.externalIds and a.externalIds.DBLP
+    ]
+    dblps = [d for d in dblps if d is not None]  # Filter out None values
     if match_type == "user_confirmed" and len(dblps) >= 2 and len(set(dblps)) == 1:
         match_type = "dblp"
         confidence = 0.95
@@ -395,10 +424,6 @@ async def consolidate_authors(
             for aff in author.affiliations:
                 if aff not in merged_affiliations:
                     merged_affiliations.append(aff)
-        if author.aliases:
-            for alias in author.aliases:
-                if alias not in merged_aliases:
-                    merged_aliases.append(alias)
         if author.name and author.name not in merged_aliases:
             merged_aliases.append(author.name)
 
@@ -409,7 +434,23 @@ async def consolidate_authors(
     # Sum paper and citation counts
     total_papers = sum(a.paperCount or 0 for a in authors)
     total_citations = sum(a.citationCount or 0 for a in authors)
-    max_hindex = max((a.hIndex or 0) for a in authors)
+
+    # Build notes for the merged record
+    notes: list[str] = []
+
+    # h-index cannot be computed for merged profiles - collect source h-indices
+    source_hindices = [str(a.hIndex) for a in authors if a.hIndex is not None]
+    if source_hindices:
+        notes.append(
+            "Note: h-index is not set for merged profiles because it cannot be "
+            "accurately computed from multiple author records. The source authors' "
+            f"h-indices are: {', '.join(source_hindices)}."
+        )
+    else:
+        notes.append(
+            "Note: h-index is not set for merged profiles because it cannot be "
+            "accurately computed from multiple author records."
+        )
 
     # Get best external IDs
     best_external_ids = primary.externalIds
@@ -425,7 +466,7 @@ async def consolidate_authors(
         affiliations=merged_affiliations if merged_affiliations else None,
         paperCount=total_papers,
         citationCount=total_citations,
-        hIndex=max_hindex,
+        hIndex=None,  # Cannot be computed for merged profiles
         aliases=merged_aliases if merged_aliases else None,
         homepage=primary.homepage,
         externalIds=best_external_ids,
@@ -437,6 +478,119 @@ async def consolidate_authors(
         match_type=match_type,
         confidence=confidence,
         is_preview=not confirm_merge,
+        notes=notes if notes else None,
     )
 
     return result
+
+
+async def get_author_top_papers(
+    author_id: str,
+    top_n: int = 5,
+    min_citations: int | None = None,
+) -> AuthorTopPapers | str:
+    """Get an author's most cited papers.
+
+    Fetches the author's papers and returns the top N by citation count.
+    This is more efficient than get_author_details when you just need to find
+    an author's most influential work, as it returns a smaller response focused
+    on high-impact papers.
+
+    Args:
+        author_id: The Semantic Scholar author ID (e.g., "1741101").
+        top_n: Number of top papers to return (default 5, max 100).
+        min_citations: Optional minimum citation count filter. Papers with
+            fewer citations will be excluded from results.
+
+    Returns:
+        AuthorTopPapers containing:
+        - author_id: The Semantic Scholar author ID
+        - author_name: The author's name
+        - total_papers: Total number of papers by this author
+        - total_citations: Total citation count across all papers
+        - papers_fetched: Number of papers fetched to find top N
+        - top_papers: The top N papers sorted by citation count (highest first)
+
+        Returns an error message if the author is not found.
+
+    Examples:
+        >>> get_author_top_papers("1741101")  # Get top 5 papers
+        >>> get_author_top_papers("1741101", top_n=10)  # Get top 10 papers
+        >>> get_author_top_papers("1741101", min_citations=100)  # Only papers with 100+ citations
+    """
+    # Validate top_n
+    top_n = max(1, min(100, top_n))
+
+    # Fetch author details first
+    client = get_client()
+    params: dict[str, str] = {"fields": DEFAULT_AUTHOR_FIELDS}
+
+    try:
+        author_response = await client.get_with_retry(f"/author/{author_id}", params=params)
+    except NotFoundError:
+        return (
+            f"Author not found with ID '{author_id}'. Please verify the author ID is "
+            "correct. You can find author IDs by using the search_authors tool."
+        )
+
+    author = Author(**author_response)
+
+    # Determine how many papers to fetch
+    # The author papers endpoint doesn't support sorting by citations, so we must
+    # fetch all papers and sort client-side to find the true top papers
+    # API limit: 1000 per request, 10000 total for an author
+    total_papers = author.paperCount or 0
+    fetch_limit = min(10000, total_papers) if total_papers > 0 else 1000
+
+    # Fetch papers with pagination to get enough for sorting
+    all_papers: list[Paper] = []
+    offset = 0
+
+    while len(all_papers) < fetch_limit and (total_papers == 0 or offset < total_papers):
+        papers_params: dict[str, str | int] = {
+            "fields": DEFAULT_PAPER_FIELDS,
+            "limit": min(1000, fetch_limit - len(all_papers)),  # Max 1000 per API request
+            "offset": offset,
+        }
+        papers_response = await client.get_with_retry(
+            f"/author/{author_id}/papers", params=papers_params
+        )
+        papers_result = AuthorPapersResult(**papers_response)
+
+        if not papers_result.data:
+            break
+
+        all_papers.extend(papers_result.data)
+        offset += len(papers_result.data)
+
+        # Stop if we got fewer papers than requested (no more available)
+        if len(papers_result.data) < papers_params["limit"]:
+            break
+
+    # Apply min_citations filter if specified
+    if min_citations is not None:
+        all_papers = [p for p in all_papers if (p.citationCount or 0) >= min_citations]
+
+    # Sort by citation count (highest first)
+    sorted_papers = sorted(
+        all_papers,
+        key=lambda p: p.citationCount or 0,
+        reverse=True,
+    )
+
+    # Take top N
+    top_papers = sorted_papers[:top_n]
+
+    # Track papers for BibTeX export
+    if top_papers:
+        tracker = get_tracker()
+        tracker.track_many(top_papers, "get_author_top_papers")
+
+    return AuthorTopPapers(
+        author_id=author_id,
+        author_name=author.name,
+        total_papers=author.paperCount,
+        total_citations=author.citationCount,
+        papers_fetched=len(all_papers),
+        top_papers=top_papers,
+    )
