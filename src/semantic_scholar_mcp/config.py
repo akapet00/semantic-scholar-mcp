@@ -24,7 +24,11 @@ class Settings:
     """
 
     def __init__(self) -> None:
-        self.api_key: str | None = os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
+        # Strip whitespace from API key; treat whitespace-only as missing
+        raw_api_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
+        self.api_key: str | None = raw_api_key.strip() if raw_api_key else None
+        if self.api_key == "":
+            self.api_key = None
         self.graph_api_base_url: str = "https://api.semanticscholar.org/graph/v1"
         self.recommendations_api_base_url: str = (
             "https://api.semanticscholar.org/recommendations/v1"

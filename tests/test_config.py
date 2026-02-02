@@ -186,6 +186,58 @@ class TestApiKeyPresenceHandling:
             assert settings.has_api_key is False
 
 
+class TestApiKeyWhitespaceHandling:
+    """Tests for API key whitespace stripping."""
+
+    def test_api_key_leading_whitespace_stripped(self) -> None:
+        """Test that leading whitespace is stripped from API key."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "  my-api-key"}):
+            settings = Settings()
+            assert settings.api_key == "my-api-key"
+
+    def test_api_key_trailing_whitespace_stripped(self) -> None:
+        """Test that trailing whitespace is stripped from API key."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "my-api-key  "}):
+            settings = Settings()
+            assert settings.api_key == "my-api-key"
+
+    def test_api_key_both_ends_whitespace_stripped(self) -> None:
+        """Test that whitespace on both ends is stripped from API key."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "  my-api-key  "}):
+            settings = Settings()
+            assert settings.api_key == "my-api-key"
+
+    def test_api_key_whitespace_only_returns_none(self) -> None:
+        """Test that whitespace-only API key is treated as None."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "   "}):
+            settings = Settings()
+            assert settings.api_key is None
+
+    def test_api_key_tabs_stripped(self) -> None:
+        """Test that tabs are stripped from API key."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "\tmy-api-key\t"}):
+            settings = Settings()
+            assert settings.api_key == "my-api-key"
+
+    def test_api_key_newlines_stripped(self) -> None:
+        """Test that newlines are stripped from API key."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "\nmy-api-key\n"}):
+            settings = Settings()
+            assert settings.api_key == "my-api-key"
+
+    def test_has_api_key_false_when_whitespace_only(self) -> None:
+        """Test has_api_key returns False when API key is whitespace-only."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "   "}):
+            settings = Settings()
+            assert settings.has_api_key is False
+
+    def test_has_api_key_true_when_key_has_surrounding_whitespace(self) -> None:
+        """Test has_api_key returns True when API key has valid content with whitespace."""
+        with patch.dict(os.environ, {"SEMANTIC_SCHOLAR_API_KEY": "  valid-key  "}):
+            settings = Settings()
+            assert settings.has_api_key is True
+
+
 class TestApiKeyAbsenceHandling:
     """Tests for handling when API key is absent."""
 

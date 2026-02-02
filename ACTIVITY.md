@@ -249,3 +249,27 @@ Append activity log at bottom. Follow the template:
 - `uv run ty check src/`: 3 pre-existing diagnostics (unrelated to this change)
 
 **Blockers:** None
+
+### 2026-02-02 23:18 (CET)
+
+**Task completed:** US-2: Strip whitespace from API key configuration
+
+**Changes made:**
+- `src/semantic_scholar_mcp/config.py`: Modified `__init__` to strip leading/trailing whitespace from `SEMANTIC_SCHOLAR_API_KEY` environment variable. Whitespace-only keys are now treated as `None`.
+- `tests/test_config.py`: Added `TestApiKeyWhitespaceHandling` test class with 8 tests covering:
+  - Leading whitespace stripping
+  - Trailing whitespace stripping
+  - Both ends whitespace stripping
+  - Whitespace-only keys returning None
+  - Tab stripping
+  - Newline stripping
+  - `has_api_key` returns False for whitespace-only
+  - `has_api_key` returns True for valid key with surrounding whitespace
+
+**Verification:**
+- `uv run ruff check src/ tests/`: All checks passed!
+- `uv run ruff format src/ tests/`: 34 files left unchanged
+- `uv run pytest -v -m "not integration"`: 347 passed; coverage at 89%
+- `uv run ty check src/`: 3 pre-existing diagnostics (unrelated to this change)
+
+**Blockers:** None
