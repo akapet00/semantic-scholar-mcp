@@ -74,8 +74,8 @@ def _cleanup_client() -> None:
             loop.run_until_complete(_client.close())
             loop.close()
             logger.info("Client closed successfully")
-        except Exception:
-            pass  # Ignore errors during cleanup
+        except Exception as e:
+            logger.debug("Error during client cleanup: %s", e)
         _client = None
 
 

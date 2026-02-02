@@ -30,3 +30,18 @@ Append activity log at bottom. Follow the template:
 - `uv run ty check src/`: 4 pre-existing diagnostics (unrelated to this change)
 
 **Blockers:** None
+
+### 2026-02-02 14:25 (CET)
+
+**Task completed:** US-2: Add logging to silent exception handlers
+
+**Changes made:**
+- `src/semantic_scholar_mcp/server.py`: Added `logger.debug("Error during client cleanup: %s", e)` to the exception handler in `_cleanup_client()` function (line 77-78)
+
+**Verification:**
+- `uv run ruff check src/ tests/`: All checks passed!
+- `uv run ruff format src/ tests/`: 30 files left unchanged
+- `uv run pytest -v`: 193 passed, 6 failed (integration tests failing due to SSL certificate issues - unrelated to this change)
+- `uv run ty check src/`: 4 pre-existing diagnostics (unrelated to this change)
+
+**Blockers:** None
