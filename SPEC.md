@@ -52,7 +52,7 @@ Code quality improvements for the Semantic Scholar MCP server addressing technic
       "All files pass uv run ruff check src/ tests/",
       "All files formatted with uv run ruff format src/ tests/"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "setup",

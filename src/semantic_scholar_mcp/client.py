@@ -1,5 +1,6 @@
 """Async HTTP client for Semantic Scholar API."""
 
+import contextlib
 import logging
 from typing import Any
 
@@ -205,10 +206,8 @@ class SemanticScholarClient:
             retry_after: float | None = None
             retry_after_header = response.headers.get("Retry-After")
             if retry_after_header is not None:
-                try:
+                with contextlib.suppress(ValueError):
                     retry_after = float(retry_after_header)
-                except ValueError:
-                    pass
 
             raise RateLimitError(
                 f"Rate limit exceeded for {endpoint}. "

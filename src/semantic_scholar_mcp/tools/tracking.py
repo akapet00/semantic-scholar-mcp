@@ -42,10 +42,7 @@ async def list_tracked_papers(
     """
     tracker = get_tracker()
 
-    if source_tool:
-        papers = tracker.get_papers_by_tool(source_tool)
-    else:
-        papers = tracker.get_all_papers()
+    papers = tracker.get_papers_by_tool(source_tool) if source_tool else tracker.get_all_papers()
 
     if not papers:
         if source_tool:

@@ -45,3 +45,22 @@ Append activity log at bottom. Follow the template:
 - `uv run ty check src/`: 4 pre-existing diagnostics (unrelated to this change)
 
 **Blockers:** None
+
+### 2026-02-02 14:29 (CET)
+
+**Task completed:** US-10: Add comprehensive ruff linting rules
+
+**Changes made:**
+- `pyproject.toml`: Added ruff rules B (bugbear), C4 (comprehensions), SIM (simplify); added `ignore = ["E501"]` for line length; added isort configuration with `known-first-party = ["semantic_scholar_mcp"]`
+- `src/semantic_scholar_mcp/client.py`: Added `contextlib` import and replaced try/except/pass with `contextlib.suppress(ValueError)` (SIM105 fix)
+- `src/semantic_scholar_mcp/tools/tracking.py`: Converted if/else to ternary operator (SIM108 fix)
+- `tests/test_client.py`: Renamed unused loop variable `i` to `_i` (B007 fix)
+- `tests/test_rate_limiter.py`: Combined nested `with` statements into single statement (SIM117 fix)
+
+**Verification:**
+- `uv run ruff check src/ tests/`: All checks passed!
+- `uv run ruff format src/ tests/`: 30 files left unchanged
+- `uv run pytest -v`: 193 passed, 6 failed (integration tests failing due to SSL certificate issues - unrelated to this change)
+- `uv run ty check src/`: 4 pre-existing diagnostics (unrelated to this change)
+
+**Blockers:** None

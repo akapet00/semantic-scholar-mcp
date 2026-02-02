@@ -149,9 +149,11 @@ class TestWithRetry:
         mock_func = AsyncMock(side_effect=error)
         config = RetryConfig(max_retries=2, base_delay=0.01, jitter=0.0)
 
-        with patch("semantic_scholar_mcp.rate_limiter.asyncio.sleep", new_callable=AsyncMock):
-            with pytest.raises(RateLimitError):
-                await with_retry(mock_func, config=config)
+        with (
+            patch("semantic_scholar_mcp.rate_limiter.asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(RateLimitError),
+        ):
+            await with_retry(mock_func, config=config)
 
         # Initial call + 2 retries = 3 total calls
         assert mock_func.call_count == 3

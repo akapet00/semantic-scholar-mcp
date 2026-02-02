@@ -471,7 +471,7 @@ class TestCircuitBreakerIntegration:
 
             async with SemanticScholarClient() as client:
                 # Make requests until circuit opens
-                for i in range(3):
+                for _i in range(3):
                     with pytest.raises(APIConnectionError):
                         await client.get("/paper/search")
 
