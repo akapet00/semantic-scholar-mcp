@@ -523,26 +523,38 @@ async def get_author_top_papers(
 
     author = Author(**author_response)
 
-    # Fetch papers using server-side sorting by citation count (highest first)
-    # When min_citations is specified, fetch extra papers to account for filtering
-    fetch_limit = top_n * 3 if min_citations is not None else top_n
+    # Fetch all papers and sort client-side (API doesn't support sorting on this endpoint)
+    # The /author/{author_id}/papers endpoint does not support the `sort` parameter,
+    # so we need to fetch all papers and sort them ourselves.
+    all_papers: list[Paper] = []
+    offset = 0
+    batch_size = 1000  # API max per request
 
-    papers_params: dict[str, str | int] = {
-        "fields": COMPACT_PAPER_FIELDS,
-        "limit": fetch_limit,
-        "sort": "citationCount:desc",
-    }
-    papers_response = await client.get_with_retry(
-        f"/author/{author_id}/papers", params=papers_params
-    )
-    papers_result = AuthorPapersResult(**papers_response)
-    papers = papers_result.data
+    while True:
+        papers_params: dict[str, str | int] = {
+            "fields": COMPACT_PAPER_FIELDS,
+            "limit": batch_size,
+            "offset": offset,
+        }
+        papers_response = await client.get_with_retry(
+            f"/author/{author_id}/papers", params=papers_params
+        )
+        papers_result = AuthorPapersResult(**papers_response)
+        all_papers.extend(papers_result.data)
+
+        # Stop if we got fewer papers than requested (no more pages)
+        if len(papers_result.data) < batch_size:
+            break
+        offset += batch_size
+
+    # Sort by citation count (highest first) - API doesn't support server-side sorting
+    papers = sort_by_citations(all_papers)
 
     # Apply min_citations filter if specified (client-side filtering)
     if min_citations is not None:
         papers = [p for p in papers if (p.citationCount or 0) >= min_citations]
 
-    # Take top N (already sorted by API)
+    # Take top N
     top_papers = papers[:top_n]
 
     # Track papers for BibTeX export
@@ -555,6 +567,6 @@ async def get_author_top_papers(
         author_name=author.name,
         total_papers=author.paperCount,
         total_citations=author.citationCount,
-        papers_fetched=len(papers_result.data),
+        papers_fetched=len(all_papers),
         top_papers=top_papers,
     )
