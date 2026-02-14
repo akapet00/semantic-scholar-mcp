@@ -1,6 +1,6 @@
 """Pydantic models for Semantic Scholar API responses."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class AuthorExternalIds(BaseModel):
@@ -157,6 +157,22 @@ class Paper(BaseModel):
     externalIds: PaperExternalIds | None = None
     publicationDate: str | None = None
     publicationVenue: PublicationVenue | None = None
+
+    @field_validator("publicationVenue", mode="before")
+    @classmethod
+    def coerce_publication_venue(cls, v: object) -> object:
+        """Coerce plain venue ID strings into PublicationVenue objects.
+
+        The Semantic Scholar Recommendations API sometimes returns
+        ``publicationVenue`` as a bare UUID string (e.g.
+        ``"c7f73dd6-8431-403d-8268-80d666abe1bc"``) instead of the full
+        venue object.  Without this validator, Pydantic rejects the string
+        and ``get_recommendations`` / ``get_related_papers`` always fail
+        with a validation error.
+        """
+        if isinstance(v, str):
+            return PublicationVenue(id=v)
+        return v
 
 
 class PaperWithTldr(Paper):
