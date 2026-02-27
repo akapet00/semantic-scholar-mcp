@@ -159,6 +159,63 @@ class TestPaperModel:
         assert paper.externalIds.ArXiv == "2301.00001"
         assert paper.publicationVenue.issn == "1234-5678"
 
+    def test_paper_publication_venue_string_coercion(self) -> None:
+        """Test that a plain venue ID string is coerced into a PublicationVenue.
+
+        The Recommendations API sometimes returns publicationVenue as a bare
+        UUID string instead of the full venue object.
+        """
+        data = {
+            "paperId": "abc123",
+            "publicationVenue": "c7f73dd6-8431-403d-8268-80d666abe1bc",
+        }
+        paper = Paper.model_validate(data)
+        assert isinstance(paper.publicationVenue, PublicationVenue)
+        assert paper.publicationVenue.id == "c7f73dd6-8431-403d-8268-80d666abe1bc"
+        assert paper.publicationVenue.name is None
+
+    def test_paper_publication_venue_none_still_works(self) -> None:
+        """Test that publicationVenue=None is unaffected by the validator."""
+        paper = Paper(paperId="abc123", publicationVenue=None)
+        assert paper.publicationVenue is None
+
+    def test_paper_publication_venue_dict_still_works(self) -> None:
+        """Test that publicationVenue as a dict is unaffected by the validator."""
+        data = {
+            "paperId": "abc123",
+            "publicationVenue": {"id": "venue-id", "name": "NeurIPS", "type": "conference"},
+        }
+        paper = Paper.model_validate(data)
+        assert paper.publicationVenue.name == "NeurIPS"
+        assert paper.publicationVenue.type == "conference"
+
+    def test_recommendation_result_with_string_venues(self) -> None:
+        """Test RecommendationResult handles papers with string publicationVenue."""
+        data = {
+            "recommendedPapers": [
+                {
+                    "paperId": "p1",
+                    "title": "Paper 1",
+                    "publicationVenue": "c7f73dd6-8431-403d-8268-80d666abe1bc",
+                },
+                {
+                    "paperId": "p2",
+                    "title": "Paper 2",
+                    "publicationVenue": None,
+                },
+                {
+                    "paperId": "p3",
+                    "title": "Paper 3",
+                    "publicationVenue": {"id": "venue-id", "name": "ICML"},
+                },
+            ]
+        }
+        result = RecommendationResult.model_validate(data)
+        assert len(result.recommendedPapers) == 3
+        assert result.recommendedPapers[0].publicationVenue.id == "c7f73dd6-8431-403d-8268-80d666abe1bc"
+        assert result.recommendedPapers[1].publicationVenue is None
+        assert result.recommendedPapers[2].publicationVenue.name == "ICML"
+
 
 class TestAuthorModel:
     """Tests for the Author model."""
