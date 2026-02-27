@@ -5,6 +5,9 @@ and references of academic papers through the Semantic Scholar API.
 """
 
 from semantic_scholar_mcp.exceptions import NotFoundError
+from semantic_scholar_mcp.logging_config import get_logger
+
+logger = get_logger("papers")
 from semantic_scholar_mcp.models import (
     CitingPaper,
     Paper,
@@ -21,6 +24,20 @@ from semantic_scholar_mcp.tools._common import (
     get_tracker,
     paper_not_found_message,
 )
+
+
+def _parse_year_filter(year: str) -> tuple[int, int]:
+    """Parse year filter string into (min_year, max_year) tuple."""
+    if "-" in year:
+        parts = year.split("-", 1)
+        return int(parts[0]), int(parts[1])
+    return int(year), int(year)
+
+
+def _filter_by_year(papers: list[Paper], year: str) -> list[Paper]:
+    """Filter papers by year range (client-side)."""
+    min_year, max_year = _parse_year_filter(year)
+    return [p for p in papers if p.year is not None and min_year <= p.year <= max_year]
 
 
 async def search_papers(
@@ -65,6 +82,10 @@ async def search_papers(
         >>> search_papers("CRISPR gene editing", year="2020-2024", min_citation_count=50)
         >>> search_papers("neural networks", fields_of_study=["Computer Science"], limit=20)
     """
+    # Validate query
+    if not query or not query.strip():
+        return "Please provide a non-empty search query."
+
     # Validate limit
     limit = max(1, min(100, limit))
 
@@ -187,6 +208,11 @@ async def get_paper_citations(
         limit: Maximum number of citing papers to return (1-1000, default 100).
         year: Optional year filter in format "YYYY" for single year or
             "YYYY-YYYY" for range (e.g., "2020" or "2020-2024").
+            Note: Filtering is performed client-side because the S2 citations
+            API does not support a year parameter. When a year filter is active,
+            more results are fetched internally and then filtered, so the actual
+            number of returned papers may be less than ``limit`` for narrow
+            year ranges.
 
     Returns:
         List of papers that cite the given paper, each containing:
@@ -210,37 +236,79 @@ async def get_paper_citations(
     # Validate limit
     limit = max(1, min(1000, limit))
 
-    # Build query parameters
-    params: dict[str, str | int] = {
-        "fields": build_nested_paper_fields("citingPaper", compact=True),
-        "limit": limit,
-    }
-
-    if year is not None:
-        params["year"] = year
-
-    # Make API request with automatic retry on rate limits
+    fields = build_nested_paper_fields("citingPaper", compact=True)
     client = get_client()
-    try:
-        response = await client.get_with_retry(f"/paper/{paper_id}/citations", params=params)
-    except NotFoundError:
-        return paper_not_found_message(paper_id)
 
-    # Parse response - citations come as list of {citingPaper: {...}}
-    data = response.get("data", [])
+    if year is None:
+        # No year filter — single request, current behaviour
+        params: dict[str, str | int] = {"fields": fields, "limit": limit}
+        try:
+            response = await client.get_with_retry(
+                f"/paper/{paper_id}/citations", params=params
+            )
+        except NotFoundError:
+            return paper_not_found_message(paper_id)
 
-    # Handle empty citations
-    if not data:
-        return (
-            f"No citations found for paper '{paper_id}'. This paper may be too new "
-            "to have citations, or citations may not yet be indexed."
-        )
+        data = response.get("data", [])
+        if not data:
+            return (
+                f"No citations found for paper '{paper_id}'. This paper may be too new "
+                "to have citations, or citations may not yet be indexed."
+            )
 
-    # Extract citing papers from the nested structure
-    citing_papers: list[Paper] = []
-    for item in data:
-        citing_paper_data = CitingPaper(**item)
-        citing_papers.append(citing_paper_data.citingPaper)
+        citing_papers: list[Paper] = []
+        for item in data:
+            citing_papers.append(CitingPaper(**item).citingPaper)
+    else:
+        # Year filter active — paginate and filter client-side because the
+        # S2 citations API ignores the year parameter.
+        year_range = _parse_year_filter(year)
+        citing_papers = []
+        offset = 0
+        batch_size = 1000
+        API_MAX_OFFSET = 9999  # S2 API requires offset + limit <= 9999
+
+        while len(citing_papers) < limit and offset < API_MAX_OFFSET:
+            remaining = API_MAX_OFFSET - offset
+            current_batch = min(batch_size, remaining)
+            if current_batch <= 0:
+                break
+            params = {"fields": fields, "limit": current_batch, "offset": offset}
+            try:
+                response = await client.get_with_retry(
+                    f"/paper/{paper_id}/citations", params=params
+                )
+            except NotFoundError:
+                return paper_not_found_message(paper_id)
+
+            data = response.get("data", [])
+            for item in data:
+                paper = CitingPaper(**item).citingPaper
+                if (
+                    paper.year is not None
+                    and year_range[0] <= paper.year <= year_range[1]
+                ):
+                    citing_papers.append(paper)
+                    if len(citing_papers) >= limit:
+                        break
+
+            if len(data) < current_batch:
+                break  # last page
+            offset += current_batch
+
+        if offset >= API_MAX_OFFSET and len(citing_papers) < limit:
+            logger.warning(
+                "API offset ceiling (9999) reached for '%s' year='%s'. Found %d/%d.",
+                paper_id, year, len(citing_papers), limit,
+            )
+
+        citing_papers = citing_papers[:limit]
+
+        if not citing_papers:
+            return (
+                f"No citations found for paper '{paper_id}' in the year range '{year}'. "
+                "Try broadening the year range."
+            )
 
     # Track papers for BibTeX export
     tracker = get_tracker()

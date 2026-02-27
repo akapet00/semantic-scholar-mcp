@@ -1,6 +1,6 @@
 """Pydantic models for Semantic Scholar API responses."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class AuthorExternalIds(BaseModel):
@@ -157,6 +157,13 @@ class Paper(BaseModel):
     externalIds: PaperExternalIds | None = None
     publicationDate: str | None = None
     publicationVenue: PublicationVenue | None = None
+
+    @field_validator("publicationVenue", mode="before")
+    @classmethod
+    def coerce_publication_venue(cls, v: object) -> object:
+        if isinstance(v, str):
+            return PublicationVenue(id=v)
+        return v
 
 
 class PaperWithTldr(Paper):

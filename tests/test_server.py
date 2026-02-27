@@ -310,7 +310,7 @@ class TestGetPaperCitations:
 
     @pytest.mark.asyncio
     async def test_get_paper_citations_with_year_filter(self, mock_client: MagicMock) -> None:
-        """Test get_paper_citations applies year filter."""
+        """Test get_paper_citations does NOT pass year to API (client-side filter)."""
         mock_client.get_with_retry.return_value = SAMPLE_CITATION_RESPONSE
 
         await get_paper_citations(
@@ -319,7 +319,98 @@ class TestGetPaperCitations:
         )
 
         call_args = mock_client.get_with_retry.call_args
-        assert call_args[1]["params"]["year"] == "2020-2024"
+        assert "year" not in call_args[1]["params"]
+
+    @pytest.mark.asyncio
+    async def test_get_paper_citations_year_filter_client_side(
+        self, mock_client: MagicMock
+    ) -> None:
+        """Test that year filter is applied client-side after fetching."""
+        citation_2019 = {
+            "citingPaper": {
+                "paperId": "p2019",
+                "title": "Paper from 2019",
+                "abstract": None,
+                "year": 2019,
+                "citationCount": 10,
+                "authors": [],
+                "venue": "ICML",
+                "publicationTypes": None,
+                "openAccessPdf": None,
+                "fieldsOfStudy": None,
+            }
+        }
+        citation_2023 = {
+            "citingPaper": {
+                "paperId": "p2023",
+                "title": "Paper from 2023",
+                "abstract": None,
+                "year": 2023,
+                "citationCount": 5,
+                "authors": [],
+                "venue": "NeurIPS",
+                "publicationTypes": None,
+                "openAccessPdf": None,
+                "fieldsOfStudy": None,
+            }
+        }
+        citation_2024 = {
+            "citingPaper": {
+                "paperId": "p2024",
+                "title": "Paper from 2024",
+                "abstract": None,
+                "year": 2024,
+                "citationCount": 2,
+                "authors": [],
+                "venue": "ICLR",
+                "publicationTypes": None,
+                "openAccessPdf": None,
+                "fieldsOfStudy": None,
+            }
+        }
+        mock_client.get_with_retry.return_value = {
+            "data": [citation_2019, citation_2023, citation_2024]
+        }
+
+        result = await get_paper_citations("some-paper", year="2023-2024")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0].paperId == "p2023"
+        assert result[1].paperId == "p2024"
+
+    @pytest.mark.asyncio
+    async def test_get_paper_citations_year_filter_single_year(
+        self, mock_client: MagicMock
+    ) -> None:
+        """Test year filter with a single year."""
+        mock_client.get_with_retry.return_value = SAMPLE_CITATION_RESPONSE
+
+        result = await get_paper_citations(
+            "649def34f8be52c8b66281af98ae884c09aef38b",
+            year="2019",
+        )
+
+        # SAMPLE_CITATION_RESPONSE has year=2017 and year=2019
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0].year == 2019
+
+    @pytest.mark.asyncio
+    async def test_get_paper_citations_year_filter_empty_result(
+        self, mock_client: MagicMock
+    ) -> None:
+        """Test year filter returns message when all papers are filtered out."""
+        mock_client.get_with_retry.return_value = SAMPLE_CITATION_RESPONSE
+
+        result = await get_paper_citations(
+            "649def34f8be52c8b66281af98ae884c09aef38b",
+            year="2025-2026",
+        )
+
+        assert isinstance(result, str)
+        assert "No citations found" in result
+        assert "2025-2026" in result
 
 
 class TestGetPaperReferences:
@@ -507,13 +598,15 @@ class TestGetRecommendations:
 
     @pytest.mark.asyncio
     async def test_get_recommendations_no_recommendations(self, mock_client: MagicMock) -> None:
-        """Test get_recommendations returns message when no recommendations."""
+        """Test get_recommendations returns message when both pools are empty."""
+        # First call (recent) returns empty, second call (all-cs fallback) also empty
         mock_client.get_with_retry.return_value = {"recommendedPapers": []}
 
         result = await get_recommendations("paper-no-recs")
 
         assert isinstance(result, str)
         assert "No recommendations found" in result
+        assert "Both" in result or "both" in result.lower()
 
     @pytest.mark.asyncio
     async def test_get_recommendations_not_found(self, mock_client: MagicMock) -> None:
@@ -546,6 +639,41 @@ class TestGetRecommendations:
 
         call_args = mock_client.get_with_retry.call_args
         assert call_args[1]["params"]["from"] == "recent"
+
+    @pytest.mark.asyncio
+    async def test_get_recommendations_fallback_to_all_cs(
+        self, mock_client: MagicMock
+    ) -> None:
+        """Test get_recommendations falls back to all-cs when recent returns empty."""
+        # First call (recent) returns empty, second call (all-cs) returns results
+        mock_client.get_with_retry.side_effect = [
+            {"recommendedPapers": []},
+            SAMPLE_RECOMMENDATION_RESPONSE,
+        ]
+
+        result = await get_recommendations("old-paper-id", from_pool="recent")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        # Verify two API calls were made
+        assert mock_client.get_with_retry.call_count == 2
+        # Second call should use "all-cs"
+        second_call = mock_client.get_with_retry.call_args_list[1]
+        assert second_call[1]["params"]["from"] == "all-cs"
+
+    @pytest.mark.asyncio
+    async def test_get_recommendations_no_fallback_when_recent_has_results(
+        self, mock_client: MagicMock
+    ) -> None:
+        """Test get_recommendations does NOT fallback when recent returns results."""
+        mock_client.get_with_retry.return_value = SAMPLE_RECOMMENDATION_RESPONSE
+
+        result = await get_recommendations("popular-paper-id", from_pool="recent")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        # Only one API call — no fallback
+        assert mock_client.get_with_retry.call_count == 1
 
 
 class TestGetRelatedPapers:
