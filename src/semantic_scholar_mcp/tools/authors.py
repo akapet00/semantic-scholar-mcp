@@ -87,7 +87,7 @@ async def search_authors(
     limit = max(1, min(1000, limit))
 
     # Over-fetch when re-ranking to ensure the main profile is captured
-    fetch_limit = min(limit * 3, 1000) if sort_by_citations_flag else limit
+    fetch_limit = min(limit * 10, 1000) if sort_by_citations_flag else limit
 
     # Build query parameters
     params: dict[str, str | int] = {
@@ -115,6 +115,25 @@ async def search_authors(
     # Re-rank by citation count so the main profile appears first
     if sort_by_citations_flag:
         authors = sort_by_citations(authors)
+
+    # Fallback: if top result has suspiciously low citations for a name search,
+    # the main profile may be missing. Try DBLP/ORCID matching via
+    # find_duplicate_authors to surface the primary record.
+    if (
+        sort_by_citations_flag
+        and authors
+        and (authors[0].citationCount is None or authors[0].citationCount < 5000)
+        and len(query.split()) >= 2  # Only for full names, not single words
+    ):
+        try:
+            fallback_groups = await find_duplicate_authors([query])
+            if isinstance(fallback_groups, list) and fallback_groups:
+                primary = fallback_groups[0].primary_author
+                existing_ids = {a.authorId for a in authors if a.authorId}
+                if primary.authorId and primary.authorId not in existing_ids:
+                    authors = [primary] + authors
+        except Exception:
+            pass  # fallback must not break the main search
 
     return authors[:limit]
 

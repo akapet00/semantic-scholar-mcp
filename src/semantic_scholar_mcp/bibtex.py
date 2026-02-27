@@ -200,6 +200,10 @@ def detect_entry_type(paper: Paper) -> BibTeXEntryType:
     if paper.journal and paper.journal.name:
         return BibTeXEntryType.ARTICLE
 
+    # ArXiv preprints without venue/journal → @unpublished
+    if paper.externalIds and paper.externalIds.ArXiv:
+        return BibTeXEntryType.UNPUBLISHED
+
     # Default to misc for unknown types
     return BibTeXEntryType.MISC
 
@@ -309,6 +313,12 @@ def paper_to_bibtex_entry(
                 fields["pages"] = paper.journal.pages
         elif paper.venue:
             fields["journal"] = paper.venue
+    elif entry_type == BibTeXEntryType.UNPUBLISHED:
+        if paper.externalIds and paper.externalIds.ArXiv:
+            arxiv_id = paper.externalIds.ArXiv
+            fields["note"] = f"arXiv preprint arXiv:{arxiv_id}"
+            fields["eprint"] = arxiv_id
+            fields["archiveprefix"] = "arXiv"
 
     # Abstract (optional)
     if config.fields.include_abstract and paper.abstract:
@@ -320,10 +330,12 @@ def paper_to_bibtex_entry(
 
     # URL (optional)
     if config.fields.include_url:
-        if paper.openAccessPdf and paper.openAccessPdf.url:
+        if paper.openAccessPdf and paper.openAccessPdf.url and paper.openAccessPdf.url.strip():
             fields["url"] = paper.openAccessPdf.url
         elif paper.externalIds and paper.externalIds.DOI:
             fields["url"] = f"https://doi.org/{paper.externalIds.DOI}"
+        elif paper.paperId:
+            fields["url"] = f"https://www.semanticscholar.org/paper/{paper.paperId}"
 
     # Keywords (optional)
     if config.fields.include_keywords and paper.fieldsOfStudy:

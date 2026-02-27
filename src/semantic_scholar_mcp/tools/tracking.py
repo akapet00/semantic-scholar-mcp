@@ -146,6 +146,22 @@ async def export_bibtex(
                 "tools to find papers first, then call export_bibtex()."
             )
 
+    # Re-fetch papers that lack externalIds (needed for DOI/URL in BibTeX)
+    if include_doi or include_url:
+        client = get_client()
+        enriched_papers = []
+        for paper in papers:
+            if paper.externalIds is None and paper.paperId:
+                try:
+                    params = {"fields": DEFAULT_PAPER_FIELDS}
+                    response = await client.get_with_retry(f"/paper/{paper.paperId}", params=params)
+                    enriched_papers.append(Paper(**response))
+                except Exception:
+                    enriched_papers.append(paper)  # fallback to original
+            else:
+                enriched_papers.append(paper)
+        papers = enriched_papers
+
     # Configure export
     field_config = BibTeXFieldConfig(
         include_abstract=include_abstract,

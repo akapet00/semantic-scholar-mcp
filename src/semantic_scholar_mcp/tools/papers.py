@@ -5,6 +5,9 @@ and references of academic papers through the Semantic Scholar API.
 """
 
 from semantic_scholar_mcp.exceptions import NotFoundError
+from semantic_scholar_mcp.logging_config import get_logger
+
+logger = get_logger("papers")
 from semantic_scholar_mcp.models import (
     CitingPaper,
     Paper,
@@ -79,6 +82,10 @@ async def search_papers(
         >>> search_papers("CRISPR gene editing", year="2020-2024", min_citation_count=50)
         >>> search_papers("neural networks", fields_of_study=["Computer Science"], limit=20)
     """
+    # Validate query
+    if not query or not query.strip():
+        return "Please provide a non-empty search query."
+
     # Validate limit
     limit = max(1, min(100, limit))
 
@@ -259,10 +266,14 @@ async def get_paper_citations(
         citing_papers = []
         offset = 0
         batch_size = 1000
-        max_fetch = 10_000  # safety cap
+        API_MAX_OFFSET = 9999  # S2 API requires offset + limit <= 9999
 
-        while len(citing_papers) < limit and offset < max_fetch:
-            params = {"fields": fields, "limit": batch_size, "offset": offset}
+        while len(citing_papers) < limit and offset < API_MAX_OFFSET:
+            remaining = API_MAX_OFFSET - offset
+            current_batch = min(batch_size, remaining)
+            if current_batch <= 0:
+                break
+            params = {"fields": fields, "limit": current_batch, "offset": offset}
             try:
                 response = await client.get_with_retry(
                     f"/paper/{paper_id}/citations", params=params
@@ -281,9 +292,15 @@ async def get_paper_citations(
                     if len(citing_papers) >= limit:
                         break
 
-            if len(data) < batch_size:
+            if len(data) < current_batch:
                 break  # last page
-            offset += batch_size
+            offset += current_batch
+
+        if offset >= API_MAX_OFFSET and len(citing_papers) < limit:
+            logger.warning(
+                "API offset ceiling (9999) reached for '%s' year='%s'. Found %d/%d.",
+                paper_id, year, len(citing_papers), limit,
+            )
 
         citing_papers = citing_papers[:limit]
 
