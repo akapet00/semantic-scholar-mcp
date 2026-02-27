@@ -229,52 +229,69 @@ async def get_paper_citations(
     # Validate limit
     limit = max(1, min(1000, limit))
 
-    # When year filter is active, fetch more results to compensate for
-    # client-side filtering (the citations API does not support year param).
-    fetch_limit = min(limit * 10, 1000) if year is not None else limit
-
-    # Build query parameters (year is NOT passed — unsupported by this endpoint)
-    params: dict[str, str | int] = {
-        "fields": build_nested_paper_fields("citingPaper", compact=True),
-        "limit": fetch_limit,
-    }
-
-    # Make API request with automatic retry on rate limits
+    fields = build_nested_paper_fields("citingPaper", compact=True)
     client = get_client()
-    try:
-        response = await client.get_with_retry(f"/paper/{paper_id}/citations", params=params)
-    except NotFoundError:
-        return paper_not_found_message(paper_id)
 
-    # Parse response - citations come as list of {citingPaper: {...}}
-    data = response.get("data", [])
+    if year is None:
+        # No year filter — single request, current behaviour
+        params: dict[str, str | int] = {"fields": fields, "limit": limit}
+        try:
+            response = await client.get_with_retry(
+                f"/paper/{paper_id}/citations", params=params
+            )
+        except NotFoundError:
+            return paper_not_found_message(paper_id)
 
-    # Handle empty citations
-    if not data:
-        return (
-            f"No citations found for paper '{paper_id}'. This paper may be too new "
-            "to have citations, or citations may not yet be indexed."
-        )
+        data = response.get("data", [])
+        if not data:
+            return (
+                f"No citations found for paper '{paper_id}'. This paper may be too new "
+                "to have citations, or citations may not yet be indexed."
+            )
 
-    # Extract citing papers from the nested structure
-    citing_papers: list[Paper] = []
-    for item in data:
-        citing_paper_data = CitingPaper(**item)
-        citing_papers.append(citing_paper_data.citingPaper)
+        citing_papers: list[Paper] = []
+        for item in data:
+            citing_papers.append(CitingPaper(**item).citingPaper)
+    else:
+        # Year filter active — paginate and filter client-side because the
+        # S2 citations API ignores the year parameter.
+        year_range = _parse_year_filter(year)
+        citing_papers = []
+        offset = 0
+        batch_size = 1000
+        max_fetch = 10_000  # safety cap
 
-    # Apply client-side year filter
-    if year is not None:
-        citing_papers = _filter_by_year(citing_papers, year)
+        while len(citing_papers) < limit and offset < max_fetch:
+            params = {"fields": fields, "limit": batch_size, "offset": offset}
+            try:
+                response = await client.get_with_retry(
+                    f"/paper/{paper_id}/citations", params=params
+                )
+            except NotFoundError:
+                return paper_not_found_message(paper_id)
 
-    # Trim to requested limit
-    citing_papers = citing_papers[:limit]
+            data = response.get("data", [])
+            for item in data:
+                paper = CitingPaper(**item).citingPaper
+                if (
+                    paper.year is not None
+                    and year_range[0] <= paper.year <= year_range[1]
+                ):
+                    citing_papers.append(paper)
+                    if len(citing_papers) >= limit:
+                        break
 
-    # Handle case where year filter removed all results
-    if not citing_papers:
-        return (
-            f"No citations found for paper '{paper_id}' in the year range '{year}'. "
-            "Try broadening the year range."
-        )
+            if len(data) < batch_size:
+                break  # last page
+            offset += batch_size
+
+        citing_papers = citing_papers[:limit]
+
+        if not citing_papers:
+            return (
+                f"No citations found for paper '{paper_id}' in the year range '{year}'. "
+                "Try broadening the year range."
+            )
 
     # Track papers for BibTeX export
     tracker = get_tracker()

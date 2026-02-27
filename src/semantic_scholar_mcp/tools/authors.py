@@ -47,6 +47,7 @@ def _normalize_dblp(dblp: str | list[str] | None) -> str | None:
 async def search_authors(
     query: str,
     limit: int = 10,
+    sort_by_citations_flag: bool = True,
 ) -> list[Author] | str:
     """Search for authors by name.
 
@@ -54,10 +55,17 @@ async def search_authors(
     This is useful for tracking specific researchers, finding experts on a topic,
     or discovering collaborators.
 
+    Results are re-ranked by citation count by default so that the most prominent
+    profile appears first. This compensates for the Semantic Scholar API which
+    ranks by string relevance and may place fragmented low-citation profiles
+    above the main author record.
+
     Args:
         query: Author name to search for (e.g., "Geoffrey Hinton",
             "Yann LeCun", "Fei-Fei Li").
         limit: Maximum number of results to return (1-1000, default 10).
+        sort_by_citations_flag: If True (default), re-rank results by citation
+            count (highest first). Set to False to preserve API ordering.
 
     Returns:
         List of authors matching the search query, each containing:
@@ -78,11 +86,14 @@ async def search_authors(
     # Validate limit
     limit = max(1, min(1000, limit))
 
+    # Over-fetch when re-ranking to ensure the main profile is captured
+    fetch_limit = min(limit * 3, 1000) if sort_by_citations_flag else limit
+
     # Build query parameters
     params: dict[str, str | int] = {
         "query": query,
         "fields": DEFAULT_AUTHOR_FIELDS,
-        "limit": limit,
+        "limit": fetch_limit,
     }
 
     # Make API request with automatic retry on rate limits
@@ -99,8 +110,13 @@ async def search_authors(
             "a different spelling, or check for any accents or special characters."
         )
 
-    # Return authors
-    return [Author(**author.model_dump()) for author in result.data]
+    authors = [Author(**author.model_dump()) for author in result.data]
+
+    # Re-rank by citation count so the main profile appears first
+    if sort_by_citations_flag:
+        authors = sort_by_citations(authors)
+
+    return authors[:limit]
 
 
 async def get_author_details(
