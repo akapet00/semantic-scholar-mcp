@@ -19,6 +19,7 @@ from semantic_scholar_mcp.tools._common import (
     COMPACT_PAPER_FIELDS,
     DEFAULT_AUTHOR_FIELDS,
     DEFAULT_PAPER_FIELDS,
+    author_not_found_message,
     get_client,
     get_tracker,
     sort_by_citations,
@@ -146,10 +147,7 @@ async def get_author_details(
     try:
         author_response = await client.get_with_retry(f"/author/{author_id}", params=params)
     except NotFoundError:
-        return (
-            f"Author not found with ID '{author_id}'. Please verify the author ID is "
-            "correct. You can find author IDs by using the search_authors tool."
-        )
+        return author_not_found_message(author_id)
 
     # Parse author data
     author = Author(**author_response)
@@ -373,9 +371,7 @@ async def consolidate_authors(
             response = await client.get_with_retry(f"/author/{author_id}", params=params)
             authors.append(Author(**response))
         except NotFoundError:
-            return (
-                f"Author not found with ID '{author_id}'. Please verify the author ID is correct."
-            )
+            return author_not_found_message(author_id)
 
     if len(authors) < 2:
         return "Could not retrieve enough author records to consolidate."
@@ -516,10 +512,7 @@ async def get_author_top_papers(
     try:
         author_response = await client.get_with_retry(f"/author/{author_id}", params=params)
     except NotFoundError:
-        return (
-            f"Author not found with ID '{author_id}'. Please verify the author ID is "
-            "correct. You can find author IDs by using the search_authors tool."
-        )
+        return author_not_found_message(author_id)
 
     author = Author(**author_response)
 

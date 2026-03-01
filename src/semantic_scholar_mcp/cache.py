@@ -227,4 +227,5 @@ def get_cache() -> ResponseCache:
                     paper_details_ttl=getattr(settings, "cache_paper_ttl", 3600),
                 )
                 _cache = ResponseCache(config)
+    assert _cache is not None
     return _cache

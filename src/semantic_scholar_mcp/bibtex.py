@@ -364,10 +364,11 @@ def export_papers_to_bibtex(
         original_key = entry.cite_key
         counter = 1
         while entry.cite_key in seen_keys:
-            entry.cite_key = f"{original_key}{chr(ord('a') + counter - 1)}"
-            counter += 1
-            if counter > 26:
+            if counter <= 26:
+                entry.cite_key = f"{original_key}{chr(ord('a') + counter - 1)}"
+            else:
                 entry.cite_key = f"{original_key}_{counter}"
+            counter += 1
 
         seen_keys.add(entry.cite_key)
         entries.append(entry.to_bibtex())

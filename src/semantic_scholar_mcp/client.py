@@ -74,6 +74,7 @@ class _NonCircuitBreakerResult:
     """
 
     def __init__(self, exception: Exception) -> None:
+        """Store an exception that should not trip the circuit breaker."""
         self.exception = exception
 
 
@@ -252,6 +253,65 @@ class SemanticScholarClient:
             f"API error ({response.status_code}) for {endpoint}: {response.text}"
         )
 
+    async def _do_request(
+        self,
+        method: str,
+        endpoint: str,
+        params: dict[str, Any] | None,
+        use_recommendations_api: bool,
+        json_data: dict[str, Any] | None = None,
+    ) -> Any:
+        """Internal request logic shared by GET and POST (called by circuit breaker).
+
+        Args:
+            method: HTTP method ("GET" or "POST").
+            endpoint: API endpoint path.
+            params: Optional query parameters.
+            use_recommendations_api: If True, use Recommendations API base URL.
+            json_data: JSON body data for POST requests.
+
+        Returns:
+            Parsed JSON response data, or _NonCircuitBreakerResult wrapping
+            an exception that should not trip the circuit breaker.
+
+        Raises:
+            APIConnectionError: If connection fails or times out.
+            ServerError: If server returns 5xx error.
+        """
+        base_url = (
+            self.recommendations_api_base_url
+            if use_recommendations_api
+            else self.graph_api_base_url
+        )
+        url = f"{base_url}{endpoint}"
+
+        logger.info("API request: method=%s endpoint=%s params=%s", method, endpoint, params)
+
+        # Acquire rate limit token before making request
+        wait_time = await self._rate_limiter.acquire()
+        if wait_time > 0:
+            logger.debug("Rate limiter: waited %.2fs before request", wait_time)
+
+        client = await self._get_client()
+        try:
+            if method == "POST":
+                response = await client.post(url, json=json_data, params=params)
+            else:
+                response = await client.get(url, params=params)
+        except httpx.ConnectError as e:
+            raise APIConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
+        except httpx.TimeoutException as e:
+            raise APIConnectionError(f"Request timed out: {e}") from e
+
+        try:
+            return await self._handle_response(response, endpoint)
+        except Exception as e:
+            # Only let circuit-breaker-worthy errors propagate as exceptions
+            # Other errors (404, 429, etc.) are wrapped to prevent circuit breaker from tripping
+            if _is_circuit_breaker_error(e):
+                raise
+            return _NonCircuitBreakerResult(e)
+
     async def _do_get(
         self,
         endpoint: str,
@@ -273,36 +333,7 @@ class SemanticScholarClient:
             APIConnectionError: If connection fails or times out.
             ServerError: If server returns 5xx error.
         """
-        base_url = (
-            self.recommendations_api_base_url
-            if use_recommendations_api
-            else self.graph_api_base_url
-        )
-        url = f"{base_url}{endpoint}"
-
-        logger.info("API request: method=GET endpoint=%s params=%s", endpoint, params)
-
-        # Acquire rate limit token before making request
-        wait_time = await self._rate_limiter.acquire()
-        if wait_time > 0:
-            logger.debug("Rate limiter: waited %.2fs before request", wait_time)
-
-        client = await self._get_client()
-        try:
-            response = await client.get(url, params=params)
-        except httpx.ConnectError as e:
-            raise APIConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
-        except httpx.TimeoutException as e:
-            raise APIConnectionError(f"Request timed out: {e}") from e
-
-        try:
-            return await self._handle_response(response, endpoint)
-        except Exception as e:
-            # Only let circuit-breaker-worthy errors propagate as exceptions
-            # Other errors (404, 429, etc.) are wrapped to prevent circuit breaker from tripping
-            if _is_circuit_breaker_error(e):
-                raise
-            return _NonCircuitBreakerResult(e)
+        return await self._do_request("GET", endpoint, params, use_recommendations_api)
 
     async def get(
         self,
@@ -375,36 +406,9 @@ class SemanticScholarClient:
             APIConnectionError: If connection fails or times out.
             ServerError: If server returns 5xx error.
         """
-        base_url = (
-            self.recommendations_api_base_url
-            if use_recommendations_api
-            else self.graph_api_base_url
+        return await self._do_request(
+            "POST", endpoint, params, use_recommendations_api, json_data=json_data
         )
-        url = f"{base_url}{endpoint}"
-
-        logger.info("API request: method=POST endpoint=%s params=%s", endpoint, params)
-
-        # Acquire rate limit token before making request
-        wait_time = await self._rate_limiter.acquire()
-        if wait_time > 0:
-            logger.debug("Rate limiter: waited %.2fs before request", wait_time)
-
-        client = await self._get_client()
-        try:
-            response = await client.post(url, json=json_data, params=params)
-        except httpx.ConnectError as e:
-            raise APIConnectionError(f"Failed to connect to Semantic Scholar API: {e}") from e
-        except httpx.TimeoutException as e:
-            raise APIConnectionError(f"Request timed out: {e}") from e
-
-        try:
-            return await self._handle_response(response, endpoint)
-        except Exception as e:
-            # Only let circuit-breaker-worthy errors propagate as exceptions
-            # Other errors (404, 429, etc.) are wrapped to prevent circuit breaker from tripping
-            if _is_circuit_breaker_error(e):
-                raise
-            return _NonCircuitBreakerResult(e)
 
     async def post(
         self,

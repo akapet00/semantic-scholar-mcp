@@ -61,6 +61,9 @@ async def get_recommendations(
         >>> get_recommendations("ARXIV:1706.03762", limit=20)
         >>> get_recommendations("DOI:10.18653/v1/N18-3011", from_pool="all-cs")
     """
+    # Validate limit
+    limit = max(1, min(100, limit))
+
     # Validate from_pool parameter
     valid_pools = ("recent", "all-cs")
     if from_pool not in valid_pools:
@@ -156,6 +159,9 @@ async def get_related_papers(
         ...     limit=15
         ... )
     """
+    # Validate limit
+    limit = max(1, min(100, limit))
+
     # Validate that at least one positive paper ID is provided
     if not positive_paper_ids:
         return (
@@ -179,12 +185,15 @@ async def get_related_papers(
 
     # Make API request to recommendations endpoint with automatic retry on rate limits
     client = get_client()
-    response = await client.post_with_retry(
-        "/papers/",
-        json_data=body,
-        params=params,
-        use_recommendations_api=True,
-    )
+    try:
+        response = await client.post_with_retry(
+            "/papers/",
+            json_data=body,
+            params=params,
+            use_recommendations_api=True,
+        )
+    except NotFoundError:
+        return paper_not_found_message(", ".join(positive_paper_ids))
 
     # Parse response
     result = RecommendationResult(**response)

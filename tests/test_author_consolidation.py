@@ -361,3 +361,143 @@ class TestConsolidateAuthors:
         assert isinstance(result, AuthorConsolidationResult)
         assert result.match_type == "user_confirmed"
         assert result.confidence is None
+
+    @pytest.mark.asyncio
+    async def test_consolidate_authors_dblp_match(self, mock_client: MagicMock) -> None:
+        """Test consolidation with DBLP match type detection."""
+        author1_response: dict[str, Any] = {
+            "authorId": "1",
+            "name": "John Smith",
+            "citationCount": 1000,
+            "paperCount": 30,
+            "hIndex": 15,
+            "externalIds": {"DBLP": "homepages/s/JohnSmith"},
+        }
+        author2_response: dict[str, Any] = {
+            "authorId": "2",
+            "name": "J. Smith",
+            "citationCount": 500,
+            "paperCount": 20,
+            "hIndex": 10,
+            "externalIds": {"DBLP": "homepages/s/JohnSmith"},
+        }
+
+        mock_client.get_with_retry.side_effect = [author1_response, author2_response]
+
+        result = await consolidate_authors(["1", "2"])
+
+        assert isinstance(result, AuthorConsolidationResult)
+        assert result.match_type == "dblp"
+        assert result.confidence == 0.95
+
+    @pytest.mark.asyncio
+    async def test_consolidate_authors_external_ids_fallback(self, mock_client: MagicMock) -> None:
+        """Test that external IDs fall back to non-primary author when primary has none."""
+        author1_response: dict[str, Any] = {
+            "authorId": "1",
+            "name": "John Smith",
+            "citationCount": 1000,
+            "paperCount": 30,
+            "externalIds": None,
+        }
+        author2_response: dict[str, Any] = {
+            "authorId": "2",
+            "name": "J. Smith",
+            "citationCount": 500,
+            "paperCount": 20,
+            "externalIds": {"ORCID": "0000-0001-2345-6789"},
+        }
+
+        mock_client.get_with_retry.side_effect = [author1_response, author2_response]
+
+        result = await consolidate_authors(["1", "2"])
+
+        assert isinstance(result, AuthorConsolidationResult)
+        assert result.merged_author.externalIds is not None
+        assert result.merged_author.externalIds.ORCID == "0000-0001-2345-6789"
+
+
+class TestFindDuplicateAuthorsDblp:
+    """Tests for DBLP matching in find_duplicate_authors."""
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        """Create a mock client."""
+        mock = MagicMock()
+        mock.get_with_retry = AsyncMock()
+        return mock
+
+    @pytest.fixture(autouse=True)
+    def mock_client_getter(self, mock_client: MagicMock) -> Generator[None]:
+        """Set mock client for all tests."""
+        set_client_getter(lambda: mock_client)
+        yield
+
+    @pytest.mark.asyncio
+    async def test_find_duplicate_authors_with_dblp_match(self, mock_client: MagicMock) -> None:
+        """Test finding duplicates by DBLP match."""
+        mock_response = {
+            "total": 2,
+            "data": [
+                {
+                    "authorId": "1",
+                    "name": "John Smith",
+                    "citationCount": 1000,
+                    "externalIds": {"DBLP": "homepages/s/JohnSmith"},
+                },
+                {
+                    "authorId": "2",
+                    "name": "J. Smith",
+                    "citationCount": 500,
+                    "externalIds": {"DBLP": "homepages/s/JohnSmith"},
+                },
+            ],
+        }
+
+        mock_client.get_with_retry.return_value = mock_response
+
+        result = await find_duplicate_authors(
+            ["John Smith"], match_by_orcid=False, match_by_dblp=True
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert "same_dblp" in result[0].match_reasons[0]
+
+    @pytest.mark.asyncio
+    async def test_find_duplicate_authors_dblp_not_duplicated_with_orcid(
+        self, mock_client: MagicMock
+    ) -> None:
+        """Test that authors matched by ORCID are not double-counted in DBLP groups."""
+        mock_response = {
+            "total": 2,
+            "data": [
+                {
+                    "authorId": "1",
+                    "name": "John Smith",
+                    "citationCount": 1000,
+                    "externalIds": {
+                        "ORCID": "0000-0001-2345-6789",
+                        "DBLP": "homepages/s/JohnSmith",
+                    },
+                },
+                {
+                    "authorId": "2",
+                    "name": "J. Smith",
+                    "citationCount": 500,
+                    "externalIds": {
+                        "ORCID": "0000-0001-2345-6789",
+                        "DBLP": "homepages/s/JohnSmith",
+                    },
+                },
+            ],
+        }
+
+        mock_client.get_with_retry.return_value = mock_response
+
+        result = await find_duplicate_authors(["John Smith"])
+
+        assert isinstance(result, list)
+        # Should only have 1 group (ORCID), not 2 (ORCID + DBLP)
+        assert len(result) == 1
+        assert "same_orcid" in result[0].match_reasons[0]

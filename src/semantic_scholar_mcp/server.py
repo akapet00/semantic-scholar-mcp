@@ -57,6 +57,7 @@ def get_client() -> SemanticScholarClient:
             if _client is None:
                 _client = SemanticScholarClient()
                 logger.info("Created new SemanticScholarClient")
+    assert _client is not None
     return _client
 
 

@@ -67,6 +67,7 @@ class PaperTracker:
                 # Double-check locking pattern
                 if cls._instance is None:
                     cls._instance = PaperTracker()
+        assert cls._instance is not None
         return cls._instance
 
     @classmethod

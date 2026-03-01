@@ -786,3 +786,105 @@ class TestLargeResponseLogging:
             mock_logger.warning.assert_called()
             call_args = mock_logger.warning.call_args[0]
             assert "Large API response" in call_args[0]
+
+
+class TestPostCaching:
+    """Tests for POST request caching."""
+
+    @pytest.mark.asyncio
+    async def test_non_cacheable_post_not_cached(self, mock_settings_no_api_key: MagicMock) -> None:
+        """Test that non-cacheable POST endpoints are not cached."""
+        expected_data = {"data": [SAMPLE_PAPER_RESPONSE]}
+        request_body = {"ids": ["12345"]}
+
+        with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.is_closed = False
+            mock_response = create_mock_response(status_code=200, json_data=expected_data)
+            mock_response.request.method = "POST"
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            async with SemanticScholarClient() as client:
+                result1 = await client.post("/paper/batch", json_data=request_body)
+                result2 = await client.post("/paper/batch", json_data=request_body)
+
+            assert result1 == expected_data
+            assert result2 == expected_data
+            # Both calls should hit the API (no caching for this endpoint)
+            assert mock_client.post.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_post_circuit_breaker_open(self, mock_settings_no_api_key: MagicMock) -> None:
+        """Test that POST requests fail fast when circuit breaker is open."""
+        mock_settings_no_api_key.circuit_failure_threshold = 2
+        mock_settings_no_api_key.circuit_recovery_timeout = 60.0
+
+        with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.is_closed = False
+            mock_client.post = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            async with SemanticScholarClient() as client:
+                # Trip the circuit breaker with POST
+                for _ in range(2):
+                    with pytest.raises(APIConnectionError):
+                        await client.post("/papers/", json_data={"positivePaperIds": ["123"]})
+
+                # Next POST should fail fast
+                with pytest.raises(APIConnectionError) as exc_info:
+                    await client.post("/papers/", json_data={"positivePaperIds": ["123"]})
+
+                assert "circuit breaker" in str(exc_info.value).lower()
+
+
+class TestRetryMethods:
+    """Tests for retry wrapper methods."""
+
+    @pytest.mark.asyncio
+    async def test_get_with_retry_auto_retry_disabled(
+        self, mock_settings_no_api_key: MagicMock
+    ) -> None:
+        """Test get_with_retry falls back to get() when auto-retry is disabled."""
+        mock_settings_no_api_key.enable_auto_retry = False
+
+        with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.is_closed = False
+            mock_response = create_mock_response(status_code=200, json_data={"data": "test"})
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            async with SemanticScholarClient() as client:
+                result = await client.get_with_retry("/paper/search")
+
+            assert result == {"data": "test"}
+            mock_client.get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_post_with_retry_auto_retry_disabled(
+        self, mock_settings_no_api_key: MagicMock
+    ) -> None:
+        """Test post_with_retry falls back to post() when auto-retry is disabled."""
+        mock_settings_no_api_key.enable_auto_retry = False
+
+        with patch("semantic_scholar_mcp.client.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.is_closed = False
+            mock_response = create_mock_response(status_code=200, json_data={"data": "test"})
+            mock_response.request.method = "POST"
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.aclose = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            async with SemanticScholarClient() as client:
+                result = await client.post_with_retry(
+                    "/papers/", json_data={"positivePaperIds": ["123"]}
+                )
+
+            assert result == {"data": "test"}
+            mock_client.post.assert_called_once()

@@ -234,9 +234,7 @@ class TestGetAuthorTopPapers:
         assert result.top_papers[2].citationCount is None
 
     @pytest.mark.asyncio
-    async def test_top_n_validation(
-        self, mock_client: MagicMock, mock_tracker: MagicMock
-    ) -> None:
+    async def test_top_n_validation(self, mock_client: MagicMock, mock_tracker: MagicMock) -> None:
         """Test that top_n is validated to be between 1 and 100."""
         papers = [self._make_paper(f"p{i}", f"Paper {i}", citation_count=i) for i in range(5)]
 
@@ -262,9 +260,7 @@ class TestGetAuthorTopPapers:
         assert len(result.top_papers) == 1
 
     @pytest.mark.asyncio
-    async def test_empty_papers_list(
-        self, mock_client: MagicMock, mock_tracker: MagicMock
-    ) -> None:
+    async def test_empty_papers_list(self, mock_client: MagicMock, mock_tracker: MagicMock) -> None:
         """Test handling of author with no papers."""
         mock_client.get_with_retry.side_effect = [
             self._make_author_response(paper_count=0),

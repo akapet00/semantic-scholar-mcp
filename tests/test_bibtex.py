@@ -447,6 +447,33 @@ class TestExportPapersToBibtex:
 
         assert bibtex == ""
 
+    def test_handles_many_duplicate_cite_keys_beyond_26(self) -> None:
+        """Test that >26 papers with the same cite key are all unique and valid."""
+        papers = [
+            Paper(
+                paperId=str(i),
+                title=f"Paper {i}",
+                year=2020,
+                authors=[Author(authorId="1", name="John Smith")],
+            )
+            for i in range(30)
+        ]
+
+        bibtex = export_papers_to_bibtex(papers)
+
+        import re
+
+        # Extract all cite keys from the bibtex output
+        cite_keys = re.findall(r"@misc\{([^,]+),", bibtex)
+        assert len(cite_keys) == 30
+
+        # All keys should be unique
+        assert len(set(cite_keys)) == 30
+
+        # All keys should be valid (alphanumeric + underscore only)
+        for key in cite_keys:
+            assert re.match(r"^[a-zA-Z0-9_]+$", key), f"Invalid cite key: {key}"
+
     def test_respects_config(self) -> None:
         """Test that export respects configuration."""
         papers = [

@@ -212,7 +212,10 @@ class TestPaperModel:
         }
         result = RecommendationResult.model_validate(data)
         assert len(result.recommendedPapers) == 3
-        assert result.recommendedPapers[0].publicationVenue.id == "c7f73dd6-8431-403d-8268-80d666abe1bc"
+        assert (
+            result.recommendedPapers[0].publicationVenue.id
+            == "c7f73dd6-8431-403d-8268-80d666abe1bc"
+        )
         assert result.recommendedPapers[1].publicationVenue is None
         assert result.recommendedPapers[2].publicationVenue.name == "ICML"
 

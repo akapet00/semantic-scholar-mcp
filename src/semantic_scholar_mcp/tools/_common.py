@@ -102,6 +102,21 @@ def paper_not_found_message(paper_id: str) -> str:
     )
 
 
+def author_not_found_message(author_id: str) -> str:
+    """Generate a user-friendly error message for author not found errors.
+
+    Args:
+        author_id: The author ID that was not found.
+
+    Returns:
+        A formatted error message with guidance on finding author IDs.
+    """
+    return (
+        f"Author not found with ID '{author_id}'. Please verify the author ID is "
+        "correct. You can find author IDs by using the search_authors tool."
+    )
+
+
 def get_tracker() -> PaperTracker:
     """Get the paper tracker instance.
 
