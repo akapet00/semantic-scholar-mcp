@@ -4,12 +4,19 @@ This module tests the MCP server initialization, tool registration,
 client singleton behavior, and cleanup handler registration.
 """
 
+import asyncio
 from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from semantic_scholar_mcp import server
+
+
+def _get_registered_tool_names() -> set[str]:
+    """Get registered tool names via the public async API."""
+    tools = asyncio.run(server.mcp.list_tools())
+    return {t.name for t in tools}
 
 
 @pytest.fixture(autouse=True)
@@ -42,25 +49,19 @@ class TestToolRegistration:
 
     def test_expected_number_of_tools_registered(self) -> None:
         """Test that all 14 expected tools are registered."""
-        # The server registers exactly 14 tools
-        # Access internal _tools dict directly (synchronous access)
-        tools = server.mcp._tool_manager._tools
-        assert len(tools) == 14
+        assert len(_get_registered_tool_names()) == 14
 
     def test_search_papers_tool_registered(self) -> None:
         """Test that search_papers tool is registered."""
-        tools = server.mcp._tool_manager._tools
-        assert "search_papers" in tools
+        assert "search_papers" in _get_registered_tool_names()
 
     def test_get_paper_details_tool_registered(self) -> None:
         """Test that get_paper_details tool is registered."""
-        tools = server.mcp._tool_manager._tools
-        assert "get_paper_details" in tools
+        assert "get_paper_details" in _get_registered_tool_names()
 
     def test_export_bibtex_tool_registered(self) -> None:
         """Test that export_bibtex tool is registered."""
-        tools = server.mcp._tool_manager._tools
-        assert "export_bibtex" in tools
+        assert "export_bibtex" in _get_registered_tool_names()
 
     def test_all_expected_tools_registered(self) -> None:
         """Test that all expected tool names are registered."""
@@ -80,9 +81,7 @@ class TestToolRegistration:
             "clear_tracked_papers",
             "export_bibtex",
         }
-        tools = server.mcp._tool_manager._tools
-        tool_names = set(tools.keys())
-        assert tool_names == expected_tools
+        assert _get_registered_tool_names() == expected_tools
 
 
 class TestClientSingleton:
