@@ -4,6 +4,7 @@ This module provides tools for searching, fetching details, finding duplicates,
 and consolidating author records through the Semantic Scholar API.
 """
 
+from semantic_scholar_mcp.config import settings
 from semantic_scholar_mcp.exceptions import NotFoundError
 from semantic_scholar_mcp.models import (
     Author,
@@ -47,7 +48,7 @@ def _normalize_dblp(dblp: str | list[str] | None) -> str | None:
 
 async def search_authors(
     query: str,
-    limit: int = 10,
+    limit: int = settings.default_search_limit,
 ) -> list[Author] | str:
     """Search for authors by name.
 
@@ -58,7 +59,8 @@ async def search_authors(
     Args:
         query: Author name to search for (e.g., "Geoffrey Hinton",
             "Yann LeCun", "Fei-Fei Li").
-        limit: Maximum number of results to return (1-1000, default 10).
+        limit: Maximum number of results to return (1-1000, default from
+            SS_DEFAULT_SEARCH_LIMIT env var, initially 10).
 
     Returns:
         List of authors matching the search query, each containing:
@@ -107,7 +109,7 @@ async def search_authors(
 async def get_author_details(
     author_id: str,
     include_papers: bool = True,
-    papers_limit: int = 10,
+    papers_limit: int = settings.default_papers_limit,
 ) -> AuthorWithPapers | str:
     """Get detailed information about a specific author.
 
@@ -119,8 +121,8 @@ async def get_author_details(
         author_id: The Semantic Scholar author ID (e.g., "1741101").
         include_papers: Whether to include the author's publications.
             Defaults to True.
-        papers_limit: Maximum number of papers to return when include_papers is True.
-            Defaults to 10.
+        papers_limit: Maximum number of papers to return when include_papers is True
+            (default from SS_DEFAULT_PAPERS_LIMIT env var, initially 10).
 
     Returns:
         Complete author metadata including:

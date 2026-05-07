@@ -29,6 +29,30 @@ def _parse_int_with_bounds(env_var: str, default: int, min_val: int, max_val: in
         return default
 
 
+def _parse_float_with_bounds(env_var: str, default: float, min_val: float, max_val: float) -> float:
+    """Parse a float environment variable with bounds validation.
+
+    Args:
+        env_var: Name of the environment variable.
+        default: Default value if not set or invalid.
+        min_val: Minimum allowed value (inclusive).
+        max_val: Maximum allowed value (inclusive).
+
+    Returns:
+        The parsed and clamped float value.
+    """
+    raw = os.environ.get(env_var)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+        if not (min_val <= value <= max_val):
+            return max(min_val, min(max_val, value)) if value == value else default
+        return value
+    except ValueError:
+        return default
+
+
 class Settings:
     """Configuration settings loaded from environment variables.
 
@@ -70,9 +94,15 @@ class Settings:
         )
 
         # Retry configuration
-        self.retry_max_attempts: int = int(os.environ.get("SS_RETRY_MAX_ATTEMPTS", "5"))
-        self.retry_base_delay: float = float(os.environ.get("SS_RETRY_BASE_DELAY", "1.0"))
-        self.retry_max_delay: float = float(os.environ.get("SS_RETRY_MAX_DELAY", "60.0"))
+        self.retry_max_attempts: int = _parse_int_with_bounds(
+            "SS_RETRY_MAX_ATTEMPTS", default=5, min_val=0, max_val=20
+        )
+        self.retry_base_delay: float = _parse_float_with_bounds(
+            "SS_RETRY_BASE_DELAY", default=1.0, min_val=0.1, max_val=30.0
+        )
+        self.retry_max_delay: float = _parse_float_with_bounds(
+            "SS_RETRY_MAX_DELAY", default=60.0, min_val=1.0, max_val=300.0
+        )
         self.enable_auto_retry: bool = os.environ.get("SS_ENABLE_AUTO_RETRY", "true").lower() in (
             "true",
             "1",
@@ -84,11 +114,11 @@ class Settings:
         self.log_format: str = os.environ.get("SS_LOG_FORMAT", "simple")
 
         # Circuit breaker configuration
-        self.circuit_failure_threshold: int = int(
-            os.environ.get("SS_CIRCUIT_FAILURE_THRESHOLD", "5")
+        self.circuit_failure_threshold: int = _parse_int_with_bounds(
+            "SS_CIRCUIT_FAILURE_THRESHOLD", default=5, min_val=1, max_val=50
         )
-        self.circuit_recovery_timeout: float = float(
-            os.environ.get("SS_CIRCUIT_RECOVERY_TIMEOUT", "30.0")
+        self.circuit_recovery_timeout: float = _parse_float_with_bounds(
+            "SS_CIRCUIT_RECOVERY_TIMEOUT", default=30.0, min_val=5.0, max_val=300.0
         )
 
         # Cache configuration
@@ -97,8 +127,12 @@ class Settings:
             "1",
             "yes",
         )
-        self.cache_ttl: int = int(os.environ.get("SS_CACHE_TTL", "300"))
-        self.cache_paper_ttl: int = int(os.environ.get("SS_CACHE_PAPER_TTL", "3600"))
+        self.cache_ttl: int = _parse_int_with_bounds(
+            "SS_CACHE_TTL", default=300, min_val=0, max_val=86400
+        )
+        self.cache_paper_ttl: int = _parse_int_with_bounds(
+            "SS_CACHE_PAPER_TTL", default=3600, min_val=0, max_val=86400
+        )
 
         # Default limits configuration
         self.default_search_limit: int = _parse_int_with_bounds(

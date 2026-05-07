@@ -4,6 +4,7 @@ This module provides tools for searching, fetching details, citations,
 and references of academic papers through the Semantic Scholar API.
 """
 
+from semantic_scholar_mcp.config import settings
 from semantic_scholar_mcp.exceptions import NotFoundError
 from semantic_scholar_mcp.models import (
     CitingPaper,
@@ -28,7 +29,7 @@ async def search_papers(
     year: str | None = None,
     min_citation_count: int | None = None,
     fields_of_study: list[str] | None = None,
-    limit: int = 10,
+    limit: int = settings.default_search_limit,
 ) -> list[Paper] | str:
     """Search for academic papers by keyword or phrase.
 
@@ -44,7 +45,8 @@ async def search_papers(
             fewer citations will be excluded.
         fields_of_study: Optional list of fields to filter by (e.g.,
             ["Computer Science", "Medicine"]).
-        limit: Maximum number of results to return (1-100, default 10).
+        limit: Maximum number of results to return (1-100, default from
+            SS_DEFAULT_SEARCH_LIMIT env var, initially 10).
 
     Returns:
         List of papers matching the search query, each containing:
@@ -98,8 +100,7 @@ async def search_papers(
             "removing filters, or using different keywords."
         )
 
-    # Return papers (data is already list[Paper] from SearchResult)
-    papers = [Paper(**paper.model_dump()) for paper in result.data]
+    papers = list(result.data)
 
     # Track papers for BibTeX export
     tracker = get_tracker()
@@ -170,7 +171,7 @@ async def get_paper_details(
 
 async def get_paper_citations(
     paper_id: str,
-    limit: int = 100,
+    limit: int = settings.default_citations_limit,
     year: str | None = None,
 ) -> list[Paper] | str:
     """Get papers that cite a given paper.
@@ -184,7 +185,8 @@ async def get_paper_citations(
             - Semantic Scholar ID (e.g., "649def34f8be52c8b66281af98ae884c09aef38b")
             - DOI with prefix (e.g., "DOI:10.18653/v1/N18-3011")
             - ArXiv ID with prefix (e.g., "ARXIV:2106.15928")
-        limit: Maximum number of citing papers to return (1-1000, default 100).
+        limit: Maximum number of citing papers to return (1-1000, default from
+            SS_DEFAULT_CITATIONS_LIMIT env var, default 50).
         year: Optional year filter in format "YYYY" for single year or
             "YYYY-YYYY" for range (e.g., "2020" or "2020-2024").
 
@@ -251,7 +253,7 @@ async def get_paper_citations(
 
 async def get_paper_references(
     paper_id: str,
-    limit: int = 100,
+    limit: int = settings.default_citations_limit,
 ) -> list[Paper] | str:
     """Get papers that a given paper references (cites).
 
@@ -263,7 +265,8 @@ async def get_paper_references(
             - Semantic Scholar ID (e.g., "649def34f8be52c8b66281af98ae884c09aef38b")
             - DOI with prefix (e.g., "DOI:10.18653/v1/N18-3011")
             - ArXiv ID with prefix (e.g., "ARXIV:2106.15928")
-        limit: Maximum number of referenced papers to return (1-1000, default 100).
+        limit: Maximum number of referenced papers to return (1-1000, default from
+            SS_DEFAULT_CITATIONS_LIMIT env var, default 50).
 
     Returns:
         List of papers that the given paper references, each containing:

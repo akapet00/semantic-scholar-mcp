@@ -47,3 +47,4 @@ All settings are configured via environment variables. The server works out of t
 |----------|-------------|---------|
 | `SS_LOG_LEVEL` | Log level (DEBUG, INFO, WARNING, ERROR) | `INFO` |
 | `SS_LOG_FORMAT` | Log format (`simple` or `detailed`) | `simple` |
+| `SS_LARGE_RESPONSE_THRESHOLD` | Byte threshold for logging large response warnings | `50000` |

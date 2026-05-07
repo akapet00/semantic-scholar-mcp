@@ -1,5 +1,9 @@
 # Semantic Scholar MCP Server
 
+[![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)]()
+
 A Model Context Protocol (MCP) server for searching and analyzing academic papers via the Semantic Scholar API.
 
 > **Disclaimer:** This project is not officially affiliated with, endorsed by, or sponsored by Semantic Scholar or the Allen Institute for AI.
@@ -145,7 +149,7 @@ Without MCP, the agent spent most of its turns fighting HTTP errors, parsing raw
 
 Full analysis: [ANALYSIS.md](ANALYSIS.md)
 
-## Tools Overview
+## Tools
 
 ### Papers
 
@@ -208,7 +212,10 @@ cd semantic-scholar-mcp
 uv sync
 
 # Run tests
-uv run pytest tests/ -v
+uv run pytest
+
+# Run integration tests (requires network access)
+uv run pytest -m integration
 
 # Lint and format
 uv run ruff check src/ tests/
@@ -224,6 +231,13 @@ uv run fastmcp dev src/semantic_scholar_mcp/server.py
 ## Configuration
 
 See [CONFIGURATION.md](CONFIGURATION.md) for all environment variables (cache, retry, circuit breaker, logging, default limits).
+
+## See Also
+
+- [MCP vs. Skill: Zero-Context Alternative](https://antekapetanovic.com/blog/mcp-vs-skill/) — a Claude Code skill that achieves comparable results for personal use with zero base context cost
+- [Building the Semantic Scholar MCP](https://antekapetanovic.com/blog/semantic-scholar-mcp/) — design decisions and implementation walkthrough
+- [MCP vs. Vanilla Agent](https://antekapetanovic.com/blog/mcp-vs-vanilla-agent/) — the comparative analysis that motivated this project
+- [Scholar skill source](https://github.com/akapet00/dotclaude/tree/main/skills/scholar) — lightweight skill-based alternative for personal workflows
 
 ## License
 
