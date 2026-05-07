@@ -1,7 +1,7 @@
 [project]
 name = "semantic-scholar-mcp"
 version = "0.1.0"
-description = "MCP server for searching and analyzing academic papers via Semantic Scholar API "
+description = "MCP server for searching and analyzing academic papers via Semantic Scholar API"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
